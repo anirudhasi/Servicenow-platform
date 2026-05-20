@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: snow-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data:/app/data      # swap incidents.csv without rebuild
+    environment:
+      # Data
+      - DATA_SOURCE=${DATA_SOURCE:-csv}
+      - CSV_PATH=/app/data/incidents.csv
+      # ServiceNow API
+      - SERVICENOW_INSTANCE=${SERVICENOW_INSTANCE:-}
+      - SERVICENOW_USERNAME=${SERVICENOW_USERNAME:-}
+      - SERVICENOW_PASSWORD=${SERVICENOW_PASSWORD:-}
+      # CORS
+      - ALLOWED_ORIGINS=http://localhost:5173,http://localhost:4173
+      # LLM — legacy form (Capgemini single key)
+      - CG_ACCESS_TOKEN=${CG_ACCESS_TOKEN:-}
+      - BASE_URL=${BASE_URL:-https://openai.generative.engine.capgemini.com/v1}
+      - LLM_MODEL=${LLM_MODEL:-}
+      # LLM — multi-provider fallback
+      - PROVIDER_1_NAME=${PROVIDER_1_NAME:-capgemini}
+      - PROVIDER_1_BASE_URL=${PROVIDER_1_BASE_URL:-}
+      - PROVIDER_1_API_KEY=${PROVIDER_1_API_KEY:-}
+      - PROVIDER_1_MODELS=${PROVIDER_1_MODELS:-}
+      - PROVIDER_2_NAME=${PROVIDER_2_NAME:-openai}
+      - PROVIDER_2_BASE_URL=${PROVIDER_2_BASE_URL:-https://api.openai.com/v1}
+      - PROVIDER_2_API_KEY=${PROVIDER_2_API_KEY:-}
+      - PROVIDER_2_MODELS=${PROVIDER_2_MODELS:-gpt-4o,gpt-4-turbo}
+      - PROVIDER_3_NAME=${PROVIDER_3_NAME:-anthropic}
+      - PROVIDER_3_BASE_URL=${PROVIDER_3_BASE_URL:-https://api.anthropic.com/v1}
+      - PROVIDER_3_API_KEY=${PROVIDER_3_API_KEY:-}
+      - PROVIDER_3_MODELS=${PROVIDER_3_MODELS:-claude-3-5-sonnet-20241022}
+      # Email / Azure
+      - AZURE_TENANT_ID=${AZURE_TENANT_ID:-}
+      - AZURE_CLIENT_ID=${AZURE_CLIENT_ID:-}
+      - AZURE_CLIENT_SECRET=${AZURE_CLIENT_SECRET:-}
+      - SMTP_USER=${SMTP_USER:-}
+      - IT_EMAIL=${IT_EMAIL:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: snow-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  default:
+    name: snow-network
