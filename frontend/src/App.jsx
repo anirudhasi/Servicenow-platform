@@ -7,6 +7,7 @@ import IntelligentRouting   from './components/pages/IntelligentRouting.jsx'
 import NLChatbot            from './components/pages/NLChatbot.jsx'
 import SdmScorecard         from './components/pages/SdmScorecard.jsx'
 import DataUpload           from './components/pages/DataUpload.jsx'
+import LiveRegister         from './components/pages/LiveRegister.jsx'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/chatbot"    element={<NLChatbot />} />
           <Route path="/scorecard"  element={<SdmScorecard />} />
           <Route path="/upload"     element={<DataUpload />} />
+          <Route path="/register"   element={<LiveRegister />} />
           <Route path="*"           element={<Navigate to="/monitoring" replace />} />
         </Routes>
       </main>

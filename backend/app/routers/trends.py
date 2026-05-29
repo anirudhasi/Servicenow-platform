@@ -29,7 +29,13 @@ def get_volume(
         date_from=date_from, date_to=date_to,
         groups=groups, priorities=priorities, categories=categories,
     ))
+    if df.empty:
+        return []
     key = _resample_key(granularity)
+    # Drop rows where the period key is unknown/null before grouping
+    df = df[df[key].notna() & (df[key].astype(str) != "Unknown")]
+    if df.empty:
+        return []
     grouped = df.groupby([key, "first_assignment_group"]).size().reset_index(name="count")
     pivoted = grouped.pivot_table(index=key, columns="first_assignment_group", values="count", fill_value=0).reset_index()
     pivoted.columns.name = None
@@ -48,14 +54,19 @@ def get_mttr(
 ):
     df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups, categories=categories))
     resolved = df[df["mttr_hours"].notna() & (df["mttr_hours"] > 0)]
+    if resolved.empty:
+        return []
     key = _resample_key(granularity)
     mttr = resolved.groupby([key, "first_assignment_group"])["mttr_hours"].mean().reset_index()
     mttr["mttr_hours"] = mttr["mttr_hours"].round(1)
     pivoted = mttr.pivot_table(index=key, columns="first_assignment_group", values="mttr_hours").reset_index()
     pivoted.columns.name = None
     pivoted = pivoted.rename(columns={key: "period"})
-    pivoted["overall_avg"] = resolved.groupby(key)["mttr_hours"].mean().values[:len(pivoted)] if len(pivoted) else 0
-    return pivoted.sort_values("period").to_dict(orient="records")
+    # Align overall_avg by period (not by position — fixes prior misalignment bug)
+    overall = resolved.groupby(key)["mttr_hours"].mean().round(1).reset_index()
+    overall.columns = ["period", "overall_avg"]
+    pivoted = pivoted.merge(overall, on="period", how="left")
+    return pivoted.sort_values("period").fillna("").to_dict(orient="records")
 
 
 @router.get("/category-distribution")
@@ -66,7 +77,12 @@ def get_category_distribution(
     groups: Optional[List[str]] = Query(default=None),
 ):
     df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    if df.empty:
+        return []
     key = _resample_key(granularity)
+    df = df[df[key].notna() & (df[key].astype(str) != "Unknown")]
+    if df.empty:
+        return []
     grp = df.groupby([key, "category"]).size().reset_index(name="count")
     piv = grp.pivot_table(index=key, columns="category", values="count", fill_value=0).reset_index()
     piv.columns.name = None
@@ -83,7 +99,12 @@ def get_sla_compliance(
     priorities: Optional[List[int]] = Query(default=None),
 ):
     df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups, priorities=priorities))
+    if df.empty:
+        return []
     key = _resample_key(granularity)
+    df = df[df[key].notna() & (df[key].astype(str) != "Unknown")]
+    if df.empty:
+        return []
     sla = df.groupby(key).agg(
         total=("number", "count"),
         met=("made_sla_bool", "sum"),
@@ -101,7 +122,12 @@ def get_priority_trend(
     groups: Optional[List[str]] = Query(default=None),
 ):
     df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    if df.empty:
+        return []
     key = _resample_key(granularity)
+    df = df[df[key].notna() & (df[key].astype(str) != "Unknown")]
+    if df.empty:
+        return []
     grp = df.groupby([key, "priority"]).size().reset_index(name="count")
     piv = grp.pivot_table(index=key, columns="priority", values="count", fill_value=0).reset_index()
     piv.columns.name = None
@@ -134,6 +160,8 @@ def get_reassignment_analysis(
     groups: Optional[List[str]] = Query(default=None),
 ):
     df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    if df.empty:
+        return {"by_group": [], "scatter_data": []}
     by_group = df.groupby("first_assignment_group").agg(
         avg_reassignments=("reassignment_count", "mean"),
         total_incidents=("number", "count"),
@@ -144,10 +172,12 @@ def get_reassignment_analysis(
     scatter = df[["number","mttr_hours","reassignment_count","priority","first_assignment_group","category"]].dropna(
         subset=["mttr_hours"]
     ).rename(columns={"first_assignment_group":"group"})
-    scatter = scatter[scatter["mttr_hours"] < 500].sample(min(500, len(scatter)), random_state=42)
+    scatter = scatter[scatter["mttr_hours"] < 500]
+    if not scatter.empty:
+        scatter = scatter.sample(min(500, len(scatter)), random_state=42)
 
     return {
-        "by_group": by_group.to_dict(orient="records"),
+        "by_group":    by_group.to_dict(orient="records"),
         "scatter_data": scatter.to_dict(orient="records"),
     }
 
@@ -160,6 +190,10 @@ def get_forecast(
 ):
     """Simple linear regression forecast over monthly volumes."""
     df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to))
+    if df.empty:
+        return {"historical": [], "forecast": []}
+    # Only use rows with valid month values
+    df = df[df["month"].notna() & (df["month"].astype(str) != "Unknown")]
     monthly = df.groupby("month").size().reset_index(name="count").sort_values("month")
     if len(monthly) < 3:
         return {"historical": monthly.to_dict(orient="records"), "forecast": []}
@@ -208,6 +242,8 @@ def get_root_cause(
     groups: Optional[List[str]] = Query(default=None),
 ):
     df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    if df.empty:
+        return []
     rc = df.groupby(["category", "subcategory"]).size().reset_index(name="count")
     rc = rc.sort_values(["category","count"], ascending=[True, False])
     # Treemap format

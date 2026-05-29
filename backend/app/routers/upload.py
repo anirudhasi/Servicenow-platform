@@ -344,8 +344,18 @@ def commit_upload(req: CommitRequest):
             updated = df[CANONICAL_COLUMNS]
 
         updated.to_csv(csv_path, index=False)
-        rows_written = len(df) if csv_path.exists() else 0
+        rows_written = len(df)
         logger.info(f"Upload committed: {len(df)} new rows → {csv_path}")
+
+        # Re-run normaliser on the merged file to ensure full consistency
+        try:
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent / "data"))
+            from normalise_data import normalise as _normalise
+            _normalise(str(csv_path), str(csv_path), verbose=False)
+            logger.info("Post-commit normalisation completed.")
+        except Exception as exc:
+            logger.warning(f"Post-commit normalisation skipped: {exc}")
 
     except Exception as exc:
         logger.error(f"Commit failed: {exc}")

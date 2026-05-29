@@ -1,12 +1,13 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, TrendingUp, ChevronLeft, ChevronRight,
-  Zap, Activity, MessageSquare, ClipboardList, Upload,
+  Zap, Activity, MessageSquare, ClipboardList, Upload, TableProperties,
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
 
 const NAV = [
+  { to: '/register',   icon: TableProperties,  label: 'Live Register',          sub: 'All Incidents · Auto-Refresh' },
   { to: '/monitoring', icon: LayoutDashboard, label: 'M1 Monitoring',         sub: 'Live KPIs & Queues' },
   { to: '/trends',     icon: TrendingUp,      label: 'M2 Trend Analysis',     sub: '6-Month Insights' },
   { to: '/triage',     icon: Zap,             label: 'M3 Smart Triage',       sub: 'AI Auto-Classification' },
@@ -84,7 +85,7 @@ export default function Sidebar() {
       {!collapsed && (
         <div className="px-4 py-3 border-t border-white/10 text-[10px] text-blue-300/50">
           <p>Capgemini Technology Services</p>
-          <p className="opacity-60">v2.2.0 · AI &amp; Data Practice</p>
+          <p className="opacity-60">v2.3.0 · AI &amp; Data Practice</p>
         </div>
       )}
     </aside>

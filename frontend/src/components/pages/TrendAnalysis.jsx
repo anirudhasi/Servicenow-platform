@@ -165,8 +165,23 @@ function ForecastChart({ data }) {
   )
 }
 
+// ── Error state ───────────────────────────────────────────────────────────────
+function ChartError({ message }) {
+  return (
+    <div className="h-full flex flex-col items-center justify-center gap-2 text-center px-4">
+      <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <p className="text-xs font-semibold text-red-600 dark:text-red-400">Chart failed to load</p>
+      {message && <p className="text-[10px] text-slate-400 max-w-[220px] leading-relaxed">{message}</p>}
+    </div>
+  )
+}
+
 // ── Chart card wrapper ────────────────────────────────────────────────────────
-function ChartCard({ title, subtitle, children, height = 300, insight }) {
+function ChartCard({ title, subtitle, children, height = 300, insight, error }) {
   return (
     <div className="card flex flex-col">
       <div className="card-header">
@@ -174,11 +189,12 @@ function ChartCard({ title, subtitle, children, height = 300, insight }) {
           <span className="card-title">{title}</span>
           {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
         </div>
+        {error && <span className="text-[10px] text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">error</span>}
       </div>
       <div className="p-4 flex-1" style={{ height }}>
-        {children}
+        {error ? <ChartError message={error} /> : children}
       </div>
-      {insight && (
+      {insight && !error && (
         <div className="px-4 pb-4">
           <InsightCard insight={insight} />
         </div>
@@ -203,6 +219,7 @@ export default function TrendAnalysis() {
   const [forecast, setForecast] = useState(null)
   const [rootCause, setRootCause] = useState([])
   const [trendInsights, setTrendInsights] = useState([])
+  const [chartErrors, setChartErrors] = useState({})
   const [loading, setLoading]   = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -212,23 +229,36 @@ export default function TrendAnalysis() {
 
   const loadAll = useCallback(() => {
     setLoading(true)
+    setChartErrors({})
     const p = buildParams(filters)
-    Promise.all([
-      trendApi.volume(p),
-      trendApi.mttr(p),
-      trendApi.categoryDist(p),
-      trendApi.slaCompliance(p),
-      trendApi.priorityTrend(p),
-      trendApi.resolutionHeatmap(p),
-      trendApi.reassignment(p),
-      trendApi.forecast({ ...p, periods: 6 }),
-      trendApi.rootCause(p),
-      insApi.trends(p),
-    ]).then(([v, m, c, s, pr, h, ra, f, rc, ins]) => {
-      setVolume(v.data); setMttr(m.data); setCatDist(c.data); setSlaTrend(s.data)
-      setPrioTrend(pr.data); setHeatmap(h.data); setReass(ra.data); setForecast(f.data)
-      setRootCause(rc.data); setTrendInsights(ins.data)
-    }).catch(console.error).finally(() => setLoading(false))
+    // Promise.allSettled: each chart loads independently — one failure never blanks the rest
+    Promise.allSettled([
+      trendApi.volume(p),           // 0
+      trendApi.mttr(p),             // 1
+      trendApi.categoryDist(p),     // 2
+      trendApi.slaCompliance(p),    // 3
+      trendApi.priorityTrend(p),    // 4
+      trendApi.resolutionHeatmap(p),// 5
+      trendApi.reassignment(p),     // 6
+      trendApi.forecast({ ...p, periods: 6 }), // 7
+      trendApi.rootCause(p),        // 8
+      insApi.trends(p),             // 9
+    ]).then(results => {
+      const errs = {}
+      const names = ['volume','mttr','catDist','slaTrend','prioTrend','heatmap','reass','forecast','rootCause','insights']
+      const setters = [setVolume, setMttr, setCatDist, setSlaTrend, setPrioTrend, setHeatmap,
+                       (d) => setReass(d || { by_group:[], scatter_data:[] }),
+                       setForecast, setRootCause, setTrendInsights]
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          setters[i](r.value.data)
+        } else {
+          errs[names[i]] = r.reason?.response?.data?.detail || r.reason?.message || 'Failed to load'
+          console.warn(`Trend chart [${names[i]}] failed:`, r.reason)
+        }
+      })
+      setChartErrors(errs)
+    }).finally(() => setLoading(false))
   }, [filters])
 
   useEffect(() => { loadAll() }, [loadAll, refreshKey])
@@ -260,7 +290,7 @@ export default function TrendAnalysis() {
         {/* Row 1: Volume + SLA Compliance */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <ChartCard title="Incident Volume Over Time" subtitle="Stacked by assignment group" height={280}
-            insight={insightByChart['volume']}>
+            insight={insightByChart['volume']} error={chartErrors.volume}>
             {loading ? <SkeletonCard h="h-full" /> : volume.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={volume} margin={{ left: -20, right: 5 }}>
@@ -287,7 +317,7 @@ export default function TrendAnalysis() {
           </ChartCard>
 
           <ChartCard title="SLA Compliance Trend" subtitle="% met · absolute breach count" height={280}
-            insight={insightByChart['sla_compliance']}>
+            insight={insightByChart['sla_compliance']} error={chartErrors.slaTrend}>
             {loading ? <SkeletonCard h="h-full" /> : slaTrend.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={slaTrend} margin={{ left: -20, right: 5 }}>
@@ -320,7 +350,7 @@ export default function TrendAnalysis() {
         {/* Row 2: MTTR + Priority Trend */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <ChartCard title="MTTR Trends by Group" subtitle="Mean time to resolve (hours)" height={280}
-            insight={insightByChart['mttr']}>
+            insight={insightByChart['mttr']} error={chartErrors.mttr}>
             {loading ? <SkeletonCard h="h-full" /> : mttr.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={mttr} margin={{ left: -20, right: 10 }}>
@@ -343,7 +373,7 @@ export default function TrendAnalysis() {
           </ChartCard>
 
           <ChartCard title="Priority Trend" subtitle="Incident count by priority over time" height={280}
-            insight={insightByChart['volume']}>
+            insight={insightByChart['volume']} error={chartErrors.prioTrend}>
             {loading ? <SkeletonCard h="h-full" /> : prioTrend.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={prioTrend} margin={{ left: -20, right: 5 }}>
@@ -365,7 +395,7 @@ export default function TrendAnalysis() {
         {/* Row 3: Category Distribution */}
         <ChartCard title="Issue Category Distribution Over Time"
           subtitle="Stacked volume per category — hover for drilldown values" height={300}
-          insight={insightByChart['category_distribution']}>
+          insight={insightByChart['category_distribution']} error={chartErrors.catDist}>
           {loading ? <SkeletonCard h="h-full" /> : catDist.length ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={catDist} margin={{ left: -20, right: 5 }}>
@@ -386,7 +416,7 @@ export default function TrendAnalysis() {
         {/* Row 4: Forecast + Root Cause */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <ChartCard title="Volume Forecast" subtitle="Linear regression + seasonal adjustment · 6-period ahead" height={300}
-            insight={insightByChart['forecast']}>
+            insight={insightByChart['forecast']} error={chartErrors.forecast}>
             {loading ? <SkeletonCard h="h-full" /> : forecast ? <ForecastChart data={forecast} /> : <EmptyState />}
           </ChartCard>
 
@@ -394,16 +424,20 @@ export default function TrendAnalysis() {
             <div className="card-header">
               <span className="card-title">Root Cause Analysis</span>
               <span className="text-xs text-slate-400">Click category to drill into sub-causes</span>
+              {chartErrors.rootCause && <span className="text-[10px] text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">error</span>}
             </div>
             <div className="p-4 overflow-y-auto" style={{ maxHeight: 360 }}>
-              {rootCause.length ? <RootCauseBars data={rootCause} /> : <EmptyState />}
+              {chartErrors.rootCause
+                ? <ChartError message={chartErrors.rootCause} />
+                : rootCause.length ? <RootCauseBars data={rootCause} /> : <EmptyState />}
             </div>
           </div>
         </div>
 
         {/* Row 5: Resolution Heatmap */}
         <ChartCard title="Incident Creation Heat Map"
-          subtitle="Day-of-week × hour-of-day intensity — identify peak load windows" height="auto">
+          subtitle="Day-of-week × hour-of-day intensity — identify peak load windows" height="auto"
+          error={chartErrors.heatmap}>
           <div style={{ minHeight: 200 }}>
             {heatmap.length ? <ResolutionHeatmap data={heatmap} /> : <EmptyState />}
           </div>
@@ -412,7 +446,7 @@ export default function TrendAnalysis() {
         {/* Row 6: Reassignment Scatter */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <ChartCard title="Reassignment Rate by Group"
-            subtitle="Average reassignments per incident" height={280}>
+            subtitle="Average reassignments per incident" height={280} error={chartErrors.reass}>
             {loading ? <SkeletonCard h="h-full" /> : reass.by_group?.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={reass.by_group} layout="vertical" margin={{ left: 100, right: 30 }}>
@@ -431,7 +465,7 @@ export default function TrendAnalysis() {
           </ChartCard>
 
           <ChartCard title="MTTR vs Reassignment Correlation"
-            subtitle="Each bubble = 1 incident · size = reassignment count" height={280}>
+            subtitle="Each bubble = 1 incident · size = reassignment count" height={280} error={chartErrors.reass}>
             {loading ? <SkeletonCard h="h-full" /> : reass.scatter_data?.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <ScatterChart margin={{ left: -10, right: 10 }}>
