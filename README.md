@@ -84,6 +84,36 @@ reassignment_count, business_duration, last_assignment_date, resolution_notes
 
 ---
 
+## How Category Is Determined
+
+Category is set one of two ways, tried in order:
+
+### Path 1 — Column already present in CSV
+If the exported CSV contains a `category` column with values, those values are used **as-is**. No keyword matching occurs.
+
+### Path 2 — Auto-derived from text (no `category` column)
+When the `category` column is absent or entirely blank, the system **automatically classifies** each incident by counting keyword hits across the combined `short_description + service_offering` text (case-insensitive). The category with the **most keyword matches wins**. If no keywords match, the incident is labelled **General**.
+
+| Category | Keywords that trigger it |
+|----------|--------------------------|
+| **Application Access** | access, permission, login, sso, eptw, certif, approve buddy, approvebuddy, account lock, badge, access now, epermit, role, authoris, unauthor |
+| **Application Error** | error, not working, crash, issue, problem, bug, giving an error, went wrong, failed, failure, cannot, can't, unable, not running, not able |
+| **Data & Reporting** | report, data fetch, letter generation, ksahr, validation, document, upload, download, export, eclaim, eclaims, mdbr, cycle count |
+| **User Account** | new user, onboard, leaver, deactivat, profile, user setup, joiner, hrc, icharge |
+| **Network** | vpn, wifi, network, internet, connect, dns, bandwidth, proxy, connectivity |
+| **Hardware** | laptop, desktop, printer, monitor, mobile, device, hardware, screen, docking |
+| **Software & Tools** | install, software, upgrade, patch, license, version, update, app update, blueworld, bluemm, blue mm, slb ride, slbride, gt mobile, iworkplace, workday, sap, sharepoint, tep, gbs ci tracker |
+| **Infrastructure** | server, storage, backup, database, infrastructure, cpu, memory, disk, vm, virtual |
+| **Change Request** | change request, enhancement, change/enhancement, product backlog, feature request |
+| **Service Request** | request, provision, setup, new, require, materials management, mct, generic technical |
+| **General** | *(fallback — no keywords matched)* |
+
+> **Tip:** To use your real ServiceNow categories, include a `Category` column in your CSV export. The auto-derivation above is only a fallback for exports that omit it.
+>
+> **Customising rules:** Edit `CATEGORY_RULES` in `backend/app/data_loader.py` to add, remove, or rename categories and their trigger keywords.
+
+---
+
 ## Docker (Team / Production)
 
 ### Prerequisites
