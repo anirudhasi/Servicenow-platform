@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import {
   LayoutDashboard, TrendingUp, ChevronLeft, ChevronRight,
-  Zap, Activity, MessageSquare, ClipboardList,
+  Zap, Activity, MessageSquare, ClipboardList, Upload,
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
@@ -13,6 +13,7 @@ const NAV = [
   { to: '/routing',    icon: Activity,        label: 'M4 Intelligent Routing', sub: 'Auto-Assignment ML' },
   { to: '/chatbot',    icon: MessageSquare,   label: 'M5 NL Chatbot',          sub: 'Conversational AI' },
   { to: '/scorecard',  icon: ClipboardList,   label: 'M6 SDM Scorecard',       sub: 'SLA & Agent KPIs' },
+  { to: '/upload',     icon: Upload,          label: 'M7 Data Upload',          sub: 'CSV / Excel Ingestion' },
 ]
 
 export default function Sidebar() {
@@ -83,7 +84,7 @@ export default function Sidebar() {
       {!collapsed && (
         <div className="px-4 py-3 border-t border-white/10 text-[10px] text-blue-300/50">
           <p>Capgemini Technology Services</p>
-          <p className="opacity-60">v2.1.0 · AI &amp; Data Practice</p>
+          <p className="opacity-60">v2.2.0 · AI &amp; Data Practice</p>
         </div>
       )}
     </aside>

@@ -59,6 +59,17 @@ export const chatbot = {
   clearSession: (sessionId) => api.delete(`/chatbot/session/${sessionId}`),
 }
 
+// ── M7 Data Upload ────────────────────────────────────────────────────────────
+export const upload = {
+  schema:        ()          => api.get('/upload/schema'),
+  preview:       (formData)  => api.post('/upload/preview', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  }),
+  commit:        (body)      => api.post('/upload/commit', body),
+  cancelSession: (sessionId) => api.delete(`/upload/session/${sessionId}`),
+}
+
 // ── M6 SDM Scorecard ──────────────────────────────────────────────────────────
 export const scorecard = {
   summary:  (p = {}) => api.get('/scorecard/summary',  { params: p }),

@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.data_loader import get_dataframe
 from app.routers import monitoring, trends, insights
-from app.routers import triage, routing, chatbot, scorecard
+from app.routers import triage, routing, chatbot, scorecard, upload
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,6 +80,7 @@ app.include_router(triage.router,     prefix="/api")
 app.include_router(routing.router,    prefix="/api")
 app.include_router(chatbot.router,    prefix="/api")
 app.include_router(scorecard.router,  prefix="/api")
+app.include_router(upload.router,     prefix="/api")
 
 
 # ── Utility endpoints ─────────────────────────────────────────────────────────

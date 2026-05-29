@@ -6,6 +6,7 @@ import SmartTriage          from './components/pages/SmartTriage.jsx'
 import IntelligentRouting   from './components/pages/IntelligentRouting.jsx'
 import NLChatbot            from './components/pages/NLChatbot.jsx'
 import SdmScorecard         from './components/pages/SdmScorecard.jsx'
+import DataUpload           from './components/pages/DataUpload.jsx'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/routing"    element={<IntelligentRouting />} />
           <Route path="/chatbot"    element={<NLChatbot />} />
           <Route path="/scorecard"  element={<SdmScorecard />} />
+          <Route path="/upload"     element={<DataUpload />} />
           <Route path="*"           element={<Navigate to="/monitoring" replace />} />
         </Routes>
       </main>

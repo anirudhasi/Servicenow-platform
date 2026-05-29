@@ -13,6 +13,9 @@ scikit-learn==1.5.0
 # ── LLM — M5 Chatbot (OpenAI-compatible + Anthropic native via httpx) ─────────
 httpx==0.27.0
 
+# ── Excel support (M7 Data Upload) ───────────────────────────────────────────
+openpyxl==3.1.2
+
 # ── Config & validation ───────────────────────────────────────────────────────
 pydantic==2.7.1
 pydantic-settings==2.3.0
