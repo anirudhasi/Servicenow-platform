@@ -222,6 +222,53 @@ def get_incidents(
     }
 
 
+@router.get("/top-services")
+def get_top_services(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    groups: Optional[List[str]] = Query(default=None),
+    top_n: int = 10,
+):
+    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, None, None, None, None))
+    svc = df[df["service_offering"].str.strip().ne("")]
+    counts = svc.groupby("service_offering").size().reset_index(name="count").sort_values("count", ascending=False)
+    total = counts["count"].sum()
+    counts["percentage"] = (counts["count"] / total * 100).round(1)
+    return counts.head(top_n).to_dict(orient="records")
+
+
+@router.get("/resolution-codes")
+def get_resolution_codes(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    groups: Optional[List[str]] = Query(default=None),
+    priorities: Optional[List[int]] = Query(default=None),
+):
+    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, priorities, None, None, None))
+    resolved = df[df["resolution_code"].str.strip().ne("") & df["resolution_code"].notna()]
+    counts = resolved.groupby("resolution_code").size().reset_index(name="count").sort_values("count", ascending=False)
+    total = counts["count"].sum()
+    counts["percentage"] = (counts["count"] / total * 100).round(1)
+    return counts.head(12).to_dict(orient="records")
+
+
+@router.get("/monthly-volume")
+def get_monthly_volume(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    groups: Optional[List[str]] = Query(default=None),
+):
+    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, None, None, None, None))
+    monthly = df.groupby("month").agg(
+        total=("number", "count"),
+        resolved=("state", lambda x: (x.isin(["Resolved","Closed"])).sum()),
+        reopened=("reopen_count", lambda x: (x > 0).sum()),
+        avg_mttr=("mttr_hours", "mean"),
+    ).reset_index().rename(columns={"month": "period"})
+    monthly["avg_mttr"] = monthly["avg_mttr"].round(1)
+    return monthly.sort_values("period").to_dict(orient="records")
+
+
 @router.get("/last-updated")
 def get_last_updated(limit: int = 15):
     df = get_dataframe()

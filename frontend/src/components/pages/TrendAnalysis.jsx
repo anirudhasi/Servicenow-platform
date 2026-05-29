@@ -11,6 +11,7 @@ import { InsightCard, FilterBar, DrilldownModal, SkeletonCard, CustomTooltip, Em
 import clsx from 'clsx'
 
 // ── Colour maps ───────────────────────────────────────────────────────────────
+const PALETTE = ['#2563EB','#0EA5E9','#10B981','#F59E0B','#8B5CF6','#EF4444','#EC4899','#14B8A6','#F97316','#EAB308']
 const GROUP_COLORS = {
   'DPS-McLean WEB':         '#2563EB',
   'DPS-Global Service Desk':'#0EA5E9',
@@ -18,12 +19,20 @@ const GROUP_COLORS = {
   'DPS-Network Operations': '#F59E0B',
   'DPS-Security Team':      '#8B5CF6',
   'DPS-Infrastructure':     '#EF4444',
+  'DPS-WEB-L2':             '#2563EB',
+  'Global Service Desk':    '#0EA5E9',
+  'Global-Traceability-L2': '#10B981',
+  'PACS-L2':                '#F59E0B',
+  'CG-DPS-Automation-L2':   '#8B5CF6',
 }
+const groupColor = (name, idx) => GROUP_COLORS[name] || PALETTE[idx % PALETTE.length]
 const CAT_COLORS = {
-  'Application Access':'#2563EB','Hardware':'#0EA5E9','Network':'#10B981',
-  'Security':'#EF4444','Software':'#F59E0B','Email':'#8B5CF6',
-  'User Account':'#EC4899','Infrastructure':'#14B8A6',
+  'Application Access':'#2563EB','Application Error':'#0EA5E9','Hardware':'#10B981',
+  'Network':'#EF4444','Software & Tools':'#F59E0B','Software':'#F59E0B','Email':'#8B5CF6',
+  'User Account':'#EC4899','Infrastructure':'#14B8A6','Data & Reporting':'#F97316',
+  'Change Request':'#EAB308','Service Request':'#6366F1','Security':'#EF4444','General':'#94A3B8',
 }
+const catColor = (name, idx) => CAT_COLORS[name] || PALETTE[idx % PALETTE.length]
 const PRIORITY_COLORS = { P1:'#EF4444', P2:'#F97316', P3:'#EAB308', P4:'#22C55E' }
 const DOW_ORDER = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 
@@ -87,7 +96,7 @@ function RootCauseBars({ data }) {
             </div>
             <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-5 overflow-hidden">
               <div className="h-full rounded-full flex items-center pl-2"
-                style={{ width: `${(cat.total / (data[0]?.total || 1)) * 100}%`, background: Object.values(CAT_COLORS)[i % Object.values(CAT_COLORS).length] }}>
+                style={{ width: `${(cat.total / (data[0]?.total || 1)) * 100}%`, background: catColor(cat.name, i) }}>
                 <span className="text-[10px] text-white font-semibold">{cat.total}</span>
               </div>
             </div>
@@ -106,7 +115,7 @@ function RootCauseBars({ data }) {
               <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-4 overflow-hidden">
                 <div className="h-full rounded-full" style={{
                   width: `${(sub.count / (shown.children[0]?.count || 1)) * 100}%`,
-                  background: Object.values(CAT_COLORS)[i % Object.values(CAT_COLORS).length]
+                  background: catColor(sub.name, i)
                 }} />
               </div>
             </div>
@@ -258,8 +267,8 @@ export default function TrendAnalysis() {
                   <defs>
                     {groupKeys.map((g, i) => (
                       <linearGradient key={g} id={`gv${i}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={GROUP_COLORS[g] || '#2563EB'} stopOpacity={0.4} />
-                        <stop offset="95%" stopColor={GROUP_COLORS[g] || '#2563EB'} stopOpacity={0.02} />
+                        <stop offset="5%" stopColor={groupColor(g, i)} stopOpacity={0.4} />
+                        <stop offset="95%" stopColor={groupColor(g, i)} stopOpacity={0.02} />
                       </linearGradient>
                     ))}
                   </defs>
@@ -270,7 +279,7 @@ export default function TrendAnalysis() {
                   <Legend wrapperStyle={{ fontSize: 10 }} />
                   {groupKeys.map((g, i) => (
                     <Area key={g} type="monotone" dataKey={g} name={g.replace('DPS-','')}
-                      stackId="1" fill={`url(#gv${i})`} stroke={GROUP_COLORS[g] || '#2563EB'} strokeWidth={1.5} />
+                      stackId="1" fill={`url(#gv${i})`} stroke={groupColor(g, i)} strokeWidth={1.5} />
                   ))}
                 </AreaChart>
               </ResponsiveContainer>
@@ -320,9 +329,9 @@ export default function TrendAnalysis() {
                   <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}h`} />
                   <Tooltip content={<CustomTooltip formatter={(v) => `${Number(v).toFixed(1)}h`} />} />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
-                  {Object.keys(GROUP_COLORS).filter(g => mttr[0]?.[g] !== undefined).map(g => (
+                  {Object.keys(mttr[0] || {}).filter(g => g !== 'period' && g !== 'overall_avg').map((g, i) => (
                     <Line key={g} type="monotone" dataKey={g} name={g.replace('DPS-','')}
-                      stroke={GROUP_COLORS[g]} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                      stroke={groupColor(g, i)} strokeWidth={2} dot={{ r: 3 }} connectNulls />
                   ))}
                   {mttr[0]?.overall_avg !== undefined && (
                     <Line type="monotone" dataKey="overall_avg" name="Overall Avg"
@@ -366,7 +375,7 @@ export default function TrendAnalysis() {
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
                 {catKeys.map((c, i) => (
-                  <Bar key={c} dataKey={c} name={c} stackId="a" fill={CAT_COLORS[c] || Object.values(CAT_COLORS)[i % 8]}
+                  <Bar key={c} dataKey={c} name={c} stackId="a" fill={catColor(c, i)}
                     radius={i === catKeys.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
                 ))}
               </BarChart>

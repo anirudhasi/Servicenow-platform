@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, RadialBarChart, RadialBar,
+  AreaChart, Area,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PolarAngleAxis
 } from 'recharts'
 import {
@@ -306,6 +307,9 @@ export default function MonitoringDashboard() {
   const [heatmap, setHeatmap] = useState([])
   const [reopen, setReopen]   = useState(null)
   const [monInsights, setMonInsights] = useState([])
+  const [topServices, setTopServices]       = useState([])
+  const [resolutionCodes, setResolutionCodes] = useState([])
+  const [monthlyVol, setMonthlyVol]         = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -325,10 +329,14 @@ export default function MonitoringDashboard() {
       monApi.priorityHeatmap(p),
       monApi.reopenTracker(p),
       insApi.monitoring(p),
-    ]).then(([k, g, c, s, h, r, ins]) => {
+      monApi.topServices(p),
+      monApi.resolutionCodes(p),
+      monApi.monthlyVolume(p),
+    ]).then(([k, g, c, s, h, r, ins, ts, rc, mv]) => {
       setKpis(k.data); setByGroup(g.data); setByCat(c.data)
       setSlaData(s.data); setHeatmap(h.data); setReopen(r.data)
       setMonInsights(ins.data)
+      setTopServices(ts.data); setResolutionCodes(rc.data); setMonthlyVol(mv.data)
     }).catch(console.error).finally(() => setLoading(false))
   }, [filters])
 
@@ -464,7 +472,94 @@ export default function MonitoringDashboard() {
           </div>
         </div>
 
-        {/* Row 5: Insights */}
+        {/* Row 5: Monthly Volume Trend */}
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Monthly Volume Trend — Resolved vs Reopened</span>
+            <span className="text-xs text-slate-400">Total incidents created · resolved · reopened per month</span>
+          </div>
+          <div className="p-4" style={{ height: 240 }}>
+            {loading ? <SkeletonCard h="h-full" /> : monthlyVol.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={monthlyVol} margin={{ left: -20, right: 10 }}>
+                  <defs>
+                    <linearGradient id="gTotal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2563EB" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#2563EB" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="gResolved" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22C55E" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#22C55E" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Area type="monotone" dataKey="total" name="Total" fill="url(#gTotal)" stroke="#2563EB" strokeWidth={2} />
+                  <Area type="monotone" dataKey="resolved" name="Resolved" fill="url(#gResolved)" stroke="#22C55E" strokeWidth={2} />
+                  <Line type="monotone" dataKey="reopened" name="Reopened" stroke="#F97316" strokeWidth={2} dot={{ r: 3 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />}
+          </div>
+        </div>
+
+        {/* Row 6: Top Services + Resolution Codes */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Top 10 Service Offerings</span>
+              <span className="text-xs text-slate-400">By incident volume</span>
+            </div>
+            <div className="p-4" style={{ height: 320 }}>
+              {loading ? <SkeletonCard h="h-full" /> : topServices.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={topServices} layout="vertical" margin={{ left: 120, right: 40 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} />
+                    <YAxis dataKey="service_offering" type="category" tick={{ fontSize: 10 }} width={120}
+                      tickFormatter={v => v.length > 18 ? v.slice(0,17)+'…' : v} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="count" name="Incidents" fill="#2563EB" radius={[0,3,3,0]}>
+                      {topServices.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <EmptyState />}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Resolution Code Breakdown</span>
+              <span className="text-xs text-slate-400">How incidents are being closed</span>
+            </div>
+            <div className="p-4" style={{ height: 320 }}>
+              {loading ? <SkeletonCard h="h-full" /> : resolutionCodes.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={resolutionCodes} layout="vertical" margin={{ left: 130, right: 50 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis type="number" tick={{ fontSize: 10 }} />
+                    <YAxis dataKey="resolution_code" type="category" tick={{ fontSize: 10 }} width={130}
+                      tickFormatter={v => v.length > 20 ? v.slice(0,19)+'…' : v} />
+                    <Tooltip content={<CustomTooltip formatter={(v, n) => n === 'Percentage' ? `${v}%` : v} />} />
+                    <Bar dataKey="count" name="Count" fill="#10B981" radius={[0,3,3,0]}>
+                      {resolutionCodes.map((_, i) => (
+                        <Cell key={i} fill={COLORS[(i + 2) % COLORS.length]} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <EmptyState />}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 8: AI Insights */}
         {monInsights.length > 0 && (
           <div className="card">
             <div className="card-header"><span className="card-title">AI Insights</span><span className="text-xs text-slate-400">Data-backed analysis</span></div>

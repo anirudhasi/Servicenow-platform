@@ -15,6 +15,9 @@ export const monitoring = {
   reopenTracker:  (p = {}) => api.get('/monitoring/reopen-tracker',  { params: p }),
   incidents:      (p = {}) => api.get('/monitoring/incidents',       { params: p }),
   lastUpdated:    (p = {}) => api.get('/monitoring/last-updated',    { params: p }),
+  topServices:    (p = {}) => api.get('/monitoring/top-services',    { params: p }),
+  resolutionCodes:(p = {}) => api.get('/monitoring/resolution-codes',{ params: p }),
+  monthlyVolume:  (p = {}) => api.get('/monitoring/monthly-volume',  { params: p }),
 }
 
 // ── M2 Trends ─────────────────────────────────────────────────────────────────
@@ -54,6 +57,13 @@ export const chatbot = {
   status:       ()          => api.get('/chatbot/status'),
   suggestions:  ()          => api.get('/chatbot/suggestions'),
   clearSession: (sessionId) => api.delete(`/chatbot/session/${sessionId}`),
+}
+
+// ── M6 SDM Scorecard ──────────────────────────────────────────────────────────
+export const scorecard = {
+  summary:  (p = {}) => api.get('/scorecard/summary',  { params: p }),
+  byAgent:  (p = {}) => api.get('/scorecard/by-agent', { params: p }),
+  monthly:  (p = {}) => api.get('/scorecard/monthly',  { params: p }),
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

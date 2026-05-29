@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.data_loader import get_dataframe
 from app.routers import monitoring, trends, insights
-from app.routers import triage, routing, chatbot
+from app.routers import triage, routing, chatbot, scorecard
 
 logging.basicConfig(
     level=logging.INFO,
@@ -79,6 +79,7 @@ app.include_router(insights.router,   prefix="/api")
 app.include_router(triage.router,     prefix="/api")
 app.include_router(routing.router,    prefix="/api")
 app.include_router(chatbot.router,    prefix="/api")
+app.include_router(scorecard.router,  prefix="/api")
 
 
 # ── Utility endpoints ─────────────────────────────────────────────────────────
@@ -101,10 +102,24 @@ def health():
 def reload_data():
     """Force reload data from source (useful after swapping incidents.csv)."""
     df = get_dataframe(force_reload=True)
-    # Retrain ML models on fresh data
     try:
         from app.ml.trainer import init_models_async
         init_models_async(df)
     except Exception as exc:
         logger.warning(f"ML retrain after reload failed: {exc}")
     return {"status": "reloaded", "incidents": len(df)}
+
+
+@app.get("/api/reload-config", tags=["System"])
+def reload_config():
+    """Clear settings cache so updated .env values are picked up without restart."""
+    get_settings.cache_clear()
+    new = get_settings()
+    from app.llm.client import LLMClient
+    return {
+        "status": "config reloaded",
+        "llm_available": LLMClient().is_available(),
+        "base_url": new.base_url,
+        "model": new.llm_model,
+        "has_cg_token": bool(new.cg_access_token),
+    }

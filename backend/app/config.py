@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # ── LLM — legacy single-key form (backward compat with existing .env) ─────
     cg_access_token: str = ""   # CG_ACCESS_TOKEN
     base_url: str        = "https://openai.generative.engine.capgemini.com/v1"  # BASE_URL
-    llm_model: str       = ""   # LLM_MODEL  (e.g. us.anthropic.claude-sonnet-4-5-20250929-v1:0)
+    llm_model: str       = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  # LLM_MODEL default
 
     # ── LLM — Provider 1: Capgemini (OpenAI-compatible) ──────────────────────
     provider_1_name: str      = "capgemini"
