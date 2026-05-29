@@ -181,9 +181,15 @@ function ChartError({ message }) {
 }
 
 // ── Chart card wrapper ────────────────────────────────────────────────────────
+// CRITICAL: do NOT use flex-1 on the chart container div.
+// In a flex-col parent, flex-basis:0% (from Tailwind's flex-1) overrides the
+// explicit height, collapsing the container to 0px and blanking Recharts.
 function ChartCard({ title, subtitle, children, height = 300, insight, error }) {
+  const containerStyle = typeof height === 'number'
+    ? { height: `${height}px` }
+    : {}                          // 'auto' → size from content
   return (
-    <div className="card flex flex-col">
+    <div className="card">
       <div className="card-header">
         <div>
           <span className="card-title">{title}</span>
@@ -191,7 +197,7 @@ function ChartCard({ title, subtitle, children, height = 300, insight, error }) 
         </div>
         {error && <span className="text-[10px] text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">error</span>}
       </div>
-      <div className="p-4 flex-1" style={{ height }}>
+      <div className="p-4" style={containerStyle}>
         {error ? <ChartError message={error} /> : children}
       </div>
       {insight && !error && (
