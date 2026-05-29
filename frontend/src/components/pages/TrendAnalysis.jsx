@@ -295,29 +295,22 @@ export default function TrendAnalysis() {
 
         {/* Row 1: Volume + SLA Compliance */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <ChartCard title="Incident Volume Over Time" subtitle="Stacked by assignment group" height={280}
+          <ChartCard title="Incident Volume Over Time" subtitle="Stacked bar by assignment group" height={280}
             insight={insightByChart['volume']} error={chartErrors.volume}>
             {loading ? <SkeletonCard h="h-full" /> : volume.length ? (
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={volume} margin={{ left: -20, right: 5 }}>
-                  <defs>
-                    {groupKeys.map((g, i) => (
-                      <linearGradient key={g} id={`gv${i}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={groupColor(g, i)} stopOpacity={0.4} />
-                        <stop offset="95%" stopColor={groupColor(g, i)} stopOpacity={0.02} />
-                      </linearGradient>
-                    ))}
-                  </defs>
+                <BarChart data={volume} margin={{ left: -20, right: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="period" tick={{ fontSize: 10 }} />
                   <YAxis tick={{ fontSize: 10 }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
                   {groupKeys.map((g, i) => (
-                    <Area key={g} type="monotone" dataKey={g} name={g.replace('DPS-','')}
-                      stackId="1" fill={`url(#gv${i})`} stroke={groupColor(g, i)} strokeWidth={1.5} />
+                    <Bar key={g} dataKey={g} name={g.replace('DPS-', '')}
+                      stackId="stack" fill={groupColor(g, i)}
+                      radius={i === groupKeys.length - 1 ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
                   ))}
-                </AreaChart>
+                </BarChart>
               </ResponsiveContainer>
             ) : <EmptyState />}
           </ChartCard>
