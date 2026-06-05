@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import Header from '../layout/Header'
+import DateFilter from '../common/DateFilter'
 import { breach as breachApi } from '../../services/api'
 import { SkeletonCard, CustomTooltip, EmptyState } from '../common/index.jsx'
 
@@ -124,6 +125,7 @@ export default function SLABreachAnalysis() {
   const [priority,  setPriority]  = useState({ summary:[] })
   const [onHold,    setOnHold]    = useState(null)
   const [scorecard, setScorecard] = useState(null)
+  const [dateRange, setDateRange] = useState({ from: '', to: '' })
   const [loading,   setLoading]   = useState(true)
   const [refreshKey,setRefreshKey]= useState(0)
 
@@ -173,6 +175,12 @@ export default function SLABreachAnalysis() {
       />
 
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
+
+        {/* ── DATE RANGE FILTER ────────────────────────────────────── */}
+        <DateFilter
+          onDateChange={(range) => setDateRange(range)}
+          disabled={loading}
+        />
 
         {/* ── CONTRACT KPI REFERENCE STRIP ─────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

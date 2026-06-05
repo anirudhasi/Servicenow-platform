@@ -11,6 +11,7 @@ import {
 import { format } from 'date-fns'
 import { monitoring as monApi, insights as insApi, buildParams } from '../../services/api'
 import Header from '../layout/Header'
+import DateFilter from '../common/DateFilter'
 import {
   KPICard, InsightCard, FilterBar,
   SkeletonCard, CustomTooltip, EmptyState
@@ -180,7 +181,13 @@ export default function MonitoringDashboard() {
       />
 
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        {/* Filters */}
+        {/* Date Range Filter */}
+        <DateFilter
+          onDateChange={(range) => setFilters(f => ({ ...f, dateFrom: range.from, dateTo: range.to }))}
+          disabled={loading}
+        />
+
+        {/* Additional Filters */}
         <FilterBar filters={filters} onChange={setFilters} options={opts} />
 
         {/* KPI Cards */}

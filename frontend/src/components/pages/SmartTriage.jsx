@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import Header from '../layout/Header'
+import DateFilter from '../common/DateFilter'
 import { triage as triageApi } from '../../services/api'
 import { usePageMemory } from '../../hooks/usePageMemory'
 
@@ -110,6 +111,12 @@ export default function SmartTriage() {
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-5">
+
+        {/* ── Date Range Filter (optional) ──────────────────────────── */}
+        <DateFilter
+          onDateChange={() => {}}
+          disabled={loading}
+        />
 
         {/* ── Input form ───────────────────────────────────────────────── */}
         <div className="card">

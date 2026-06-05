@@ -7,6 +7,7 @@ import {
 import { TrendingUp } from 'lucide-react'
 import { trends as trendApi, insights as insApi, monitoring as monApi, buildParams } from '../../services/api'
 import Header from '../layout/Header'
+import DateFilter from '../common/DateFilter'
 import { InsightCard, FilterBar, DrilldownModal, SkeletonCard, CustomTooltip, EmptyState } from '../common/index.jsx'
 import clsx from 'clsx'
 
@@ -282,7 +283,13 @@ export default function TrendAnalysis() {
       />
 
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        {/* Filters */}
+        {/* Date Range Filter */}
+        <DateFilter
+          onDateChange={(range) => setFilters(f => ({ ...f, dateFrom: range.from, dateTo: range.to }))}
+          disabled={loading}
+        />
+
+        {/* Additional Filters */}
         <FilterBar filters={filters} onChange={setFilters} options={opts} showGranularity />
 
         {/* Row 1: Volume + SLA Compliance */}
