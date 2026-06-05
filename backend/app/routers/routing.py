@@ -95,14 +95,14 @@ async def predict_routing(req: RoutingRequest):
 @router.get("/groups", summary="List all assignment groups with performance metrics")
 def list_groups():
     df = get_dataframe()
-    groups = sorted(df["first_assignment_group"].dropna().unique())
+    groups = sorted(df["assignment_group"].dropna().unique())
     return [{"group": g, **_group_stats(df, g)} for g in groups]
 
 
 # ── Helper ────────────────────────────────────────────────────────────────────
 
 def _group_stats(df, group: str) -> dict:
-    sub = df[df["first_assignment_group"] == group]
+    sub = df[df["assignment_group"] == group]
     if sub.empty:
         return {}
     res = sub[sub["mttr_hours"].notna()]

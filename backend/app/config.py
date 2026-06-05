@@ -69,9 +69,9 @@ class Settings(BaseSettings):
     it_email: str            = ""
 
     class Config:
-        env_file          = ".env"
+        env_file          = ".env"   # backend/.env (copy of project-root .env)
         env_file_encoding = "utf-8"
-        extra             = "ignore"   # silently ignore unknown .env keys
+        extra             = "ignore"
 
 
 @lru_cache()

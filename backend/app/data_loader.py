@@ -4,7 +4,7 @@ Data Loader — tuned exactly to the real ServiceNow export format confirmed in 
 - Priority: "4 - Standard", "3 - Moderate", "2 - High", "1 - Critical"
 - Urgency:  "3 - Low", "2 - Medium", "1 - High"
 - Assigned to: "Saurabh Saraswat (SSaraswat2@slb.com)"
-- Groups: DPS-WEB-L2, Global Service Desk, Global-Traceability-L2, PACS-L2, CG-DPS-Automation-L2
+- Assignment groups: DPS-WEB-L2, Global-Traceability-L2, CG-DPS-Automation-L2
 """
 import pandas as pd
 import numpy as np
@@ -244,7 +244,7 @@ def _load_csv(path: str) -> pd.DataFrame:
     logger.info(f"Loaded {len(df)} incidents")
     logger.info(f"Priority dist: {df['priority'].value_counts().to_dict()}")
     logger.info(f"States: {df['state'].value_counts().to_dict()}")
-    logger.info(f"Groups: {df['first_assignment_group'].value_counts().to_dict()}")
+    logger.info(f"Groups: {df['assignment_group'].value_counts().to_dict()}")
     logger.info(f"Date range: {df['created'].min()} → {df['created'].max()}")
     return df
 
@@ -273,7 +273,7 @@ def apply_filters(df, params):
     if params.get("date_to"):
         df = df[df["created"] <= pd.Timestamp(params["date_to"]) + pd.Timedelta(days=1)]
     if params.get("groups"):
-        df = df[df["first_assignment_group"].isin(params["groups"])]
+        df = df[df["assignment_group"].isin(params["groups"])]
     if params.get("priorities"):
         df = df[df["priority"].isin([int(p) for p in params["priorities"]])]
     if params.get("categories"):
@@ -287,7 +287,7 @@ def apply_filters(df, params):
 
 def get_filter_options(df):
     return {
-        "groups":     sorted(df["first_assignment_group"].dropna().unique().tolist()),
+        "groups":     sorted(df["assignment_group"].dropna().unique().tolist()),
         "categories": sorted(df["category"].dropna().unique().tolist()),
         "states":     sorted(df["state"].dropna().unique().tolist()),
         "priorities": [{"value":k,"label":v} for k,v in PRIORITY_LABELS.items()],

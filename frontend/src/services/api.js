@@ -41,8 +41,10 @@ export const insights = {
 
 // ── M3 Smart Triage ───────────────────────────────────────────────────────────
 export const triage = {
-  predict:    (body)  => api.post('/triage/predict', body),
-  modelStats: ()      => api.get('/triage/model-stats'),
+  predict:              (body)      => api.post('/triage/predict', body),
+  modelStats:           ()          => api.get('/triage/model-stats'),
+  priorityAudit:        (max = 20)  => api.post(`/triage/priority-audit?max_incidents=${max}`),
+  priorityDefinitions:  ()          => api.get('/triage/priority-definitions'),
 }
 
 // ── M4 Intelligent Routing ────────────────────────────────────────────────────
@@ -75,6 +77,35 @@ export const scorecard = {
   summary:  (p = {}) => api.get('/scorecard/summary',  { params: p }),
   byAgent:  (p = {}) => api.get('/scorecard/by-agent', { params: p }),
   monthly:  (p = {}) => api.get('/scorecard/monthly',  { params: p }),
+}
+
+// ── SLA Breach Intelligence ───────────────────────────────────────────────────
+export const breach = {
+  kpis:                () => api.get('/breach/kpis'),
+  timeline:            () => api.get('/breach/timeline'),
+  slaCompliance:       () => api.get('/breach/sla-compliance'),
+  byService:           () => api.get('/breach/by-service'),
+  byGroup:             () => api.get('/breach/by-group'),
+  elapsedDistribution: () => api.get('/breach/elapsed-distribution'),
+  assignmentAge:       () => api.get('/breach/assignment-age'),
+  reassignmentImpact:  () => api.get('/breach/reassignment-impact'),
+  priorityBreakdown:   () => api.get('/breach/priority-breakdown'),
+  onHoldAnalysis:      () => api.get('/breach/on-hold-analysis'),
+  kpiScorecard:        () => api.get('/breach/kpi-scorecard'),
+}
+
+// ── Data Management ──────────────────────────────────────────────────────────
+export const data = {
+  importData: (formData, onProgress) => api.post('/data/import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300000,
+    onUploadProgress: (evt) => {
+      const progress = Math.round((evt.loaded * 100) / evt.total)
+      onProgress?.(progress)
+    },
+  }),
+  sources: () => api.get('/data/sources'),
+  reload:   () => api.post('/data/reload'),
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

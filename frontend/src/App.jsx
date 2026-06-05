@@ -7,8 +7,8 @@ import IntelligentRouting   from './components/pages/IntelligentRouting.jsx'
 import NLChatbot            from './components/pages/NLChatbot.jsx'
 import SdmScorecard         from './components/pages/SdmScorecard.jsx'
 import DataUpload           from './components/pages/DataUpload.jsx'
-import LiveRegister         from './components/pages/LiveRegister.jsx'
-
+import SLABreachAnalysis    from './components/pages/SLABreachAnalysis.jsx'
+import DataManagement       from './components/pages/DataManagement.jsx'
 export default function App() {
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900">
@@ -19,11 +19,14 @@ export default function App() {
           <Route path="/monitoring" element={<MonitoringDashboard />} />
           <Route path="/trends"     element={<TrendAnalysis />} />
           <Route path="/triage"     element={<SmartTriage />} />
+          <Route path="/smart-triage" element={<SmartTriage />} />
           <Route path="/routing"    element={<IntelligentRouting />} />
           <Route path="/chatbot"    element={<NLChatbot />} />
           <Route path="/scorecard"  element={<SdmScorecard />} />
+          <Route path="/breach"     element={<SLABreachAnalysis />} />
+          <Route path="/sla-breach" element={<SLABreachAnalysis />} />
           <Route path="/upload"     element={<DataUpload />} />
-          <Route path="/register"   element={<LiveRegister />} />
+          <Route path="/data"       element={<DataManagement />} />
           <Route path="*"           element={<Navigate to="/monitoring" replace />} />
         </Routes>
       </main>

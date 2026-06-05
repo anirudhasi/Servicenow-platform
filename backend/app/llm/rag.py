@@ -77,7 +77,7 @@ def build_incident_context(question: str) -> tuple[str, list[dict]]:
 
     # ── Group workload ────────────────────────────────────────────────────────
     if _has("group", "team", "assign", "backlog", "workload", "who", "queue", "which team")(question):
-        grp = open_df["first_assignment_group"].value_counts().head(8)
+        grp = open_df["assignment_group"].value_counts().head(8)
         parts.append("\n**Active Incidents by Assignment Group:**")
         for g, c in grp.items():
             parts.append(f"• {g}: {c:,} active")
@@ -97,7 +97,7 @@ def build_incident_context(question: str) -> tuple[str, list[dict]]:
     # ── MTTR by group ─────────────────────────────────────────────────────────
     if _has("mttr", "resolution time", "how long", "duration", "resolve", "mean time", "time to")(question):
         mttr_grp = (
-            res_df.groupby("first_assignment_group")["mttr_hours"]
+            res_df.groupby("assignment_group")["mttr_hours"]
             .mean()
             .sort_values()
         )
@@ -109,7 +109,7 @@ def build_incident_context(question: str) -> tuple[str, list[dict]]:
     # ── SLA compliance ────────────────────────────────────────────────────────
     if _has("sla", "breach", "compliance", "target", "met", "missed", "service level")(question):
         sla_grp = (
-            (df.groupby("first_assignment_group")["made_sla_bool"].mean() * 100)
+            (df.groupby("assignment_group")["made_sla_bool"].mean() * 100)
             .sort_values(ascending=False)
         )
         parts.append("\n**SLA Compliance by Group:**")

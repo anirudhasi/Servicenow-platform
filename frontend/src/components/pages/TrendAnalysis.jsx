@@ -13,16 +13,8 @@ import clsx from 'clsx'
 // ── Colour maps ───────────────────────────────────────────────────────────────
 const PALETTE = ['#2563EB','#0EA5E9','#10B981','#F59E0B','#8B5CF6','#EF4444','#EC4899','#14B8A6','#F97316','#EAB308']
 const GROUP_COLORS = {
-  'DPS-McLean WEB':         '#2563EB',
-  'DPS-Global Service Desk':'#0EA5E9',
-  'DPS-Materials WFR':      '#10B981',
-  'DPS-Network Operations': '#F59E0B',
-  'DPS-Security Team':      '#8B5CF6',
-  'DPS-Infrastructure':     '#EF4444',
   'DPS-WEB-L2':             '#2563EB',
-  'Global Service Desk':    '#0EA5E9',
   'Global-Traceability-L2': '#10B981',
-  'PACS-L2':                '#F59E0B',
   'CG-DPS-Automation-L2':   '#8B5CF6',
 }
 const groupColor = (name, idx) => GROUP_COLORS[name] || PALETTE[idx % PALETTE.length]

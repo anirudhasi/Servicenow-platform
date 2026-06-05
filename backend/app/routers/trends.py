@@ -36,8 +36,8 @@ def get_volume(
     df = df[df[key].notna() & (df[key].astype(str) != "Unknown")]
     if df.empty:
         return []
-    grouped = df.groupby([key, "first_assignment_group"]).size().reset_index(name="count")
-    pivoted = grouped.pivot_table(index=key, columns="first_assignment_group", values="count", fill_value=0).reset_index()
+    grouped = df.groupby([key, "assignment_group"]).size().reset_index(name="count")
+    pivoted = grouped.pivot_table(index=key, columns="assignment_group", values="count", fill_value=0).reset_index()
     pivoted.columns.name = None
     pivoted = pivoted.rename(columns={key: "period"})
     pivoted["total"] = pivoted.drop(columns=["period"]).sum(axis=1)
@@ -57,9 +57,9 @@ def get_mttr(
     if resolved.empty:
         return []
     key = _resample_key(granularity)
-    mttr = resolved.groupby([key, "first_assignment_group"])["mttr_hours"].mean().reset_index()
+    mttr = resolved.groupby([key, "assignment_group"])["mttr_hours"].mean().reset_index()
     mttr["mttr_hours"] = mttr["mttr_hours"].round(1)
-    pivoted = mttr.pivot_table(index=key, columns="first_assignment_group", values="mttr_hours").reset_index()
+    pivoted = mttr.pivot_table(index=key, columns="assignment_group", values="mttr_hours").reset_index()
     pivoted.columns.name = None
     pivoted = pivoted.rename(columns={key: "period"})
     # Align overall_avg by period (not by position — fixes prior misalignment bug)
@@ -162,16 +162,16 @@ def get_reassignment_analysis(
     df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
     if df.empty:
         return {"by_group": [], "scatter_data": []}
-    by_group = df.groupby("first_assignment_group").agg(
+    by_group = df.groupby("assignment_group").agg(
         avg_reassignments=("reassignment_count", "mean"),
         total_incidents=("number", "count"),
         high_reassignment=("reassignment_count", lambda x: (x >= 3).sum()),
-    ).reset_index().rename(columns={"first_assignment_group": "group"})
+    ).reset_index().rename(columns={"assignment_group": "group"})
     by_group["avg_reassignments"] = by_group["avg_reassignments"].round(2)
 
-    scatter = df[["number","mttr_hours","reassignment_count","priority","first_assignment_group","category"]].dropna(
+    scatter = df[["number","mttr_hours","reassignment_count","priority","assignment_group","category"]].dropna(
         subset=["mttr_hours"]
-    ).rename(columns={"first_assignment_group":"group"})
+    ).rename(columns={"assignment_group":"group"})
     scatter = scatter[scatter["mttr_hours"] < 500]
     if not scatter.empty:
         scatter = scatter.sample(min(500, len(scatter)), random_state=42)

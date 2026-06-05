@@ -1,11 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Zap, AlertCircle, Tag, BarChart2, Lightbulb,
-  Loader2, Info, CheckCircle, Clock,
+  Loader2, Info, CheckCircle, Clock, RotateCcw,
+  ShieldCheck, ShieldAlert, ChevronDown, ChevronUp, Play,
 } from 'lucide-react'
 import clsx from 'clsx'
 import Header from '../layout/Header'
 import { triage as triageApi } from '../../services/api'
+import { usePageMemory } from '../../hooks/usePageMemory'
+
+const DEFAULTS = {
+  form: { short_description: '', service_offering: '', priority_hint: '', use_llm: true },
+  result: null,
+}
 
 // ── Priority config ───────────────────────────────────────────────────────────
 const PRI = {
@@ -54,13 +61,12 @@ function ModelStatPill({ label, value, color }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function SmartTriage() {
-  const [form, setForm] = useState({
-    short_description: '',
-    service_offering: '',
-    priority_hint: '',
-    use_llm: true,
-  })
-  const [result, setResult]         = useState(null)
+  const [mem, setMem, clearMemory] = usePageMemory('triage', DEFAULTS)
+  const form   = mem.form
+  const result = mem.result
+  const setForm   = (v) => setMem({ form: typeof v === 'function' ? v(mem.form) : v })
+  const setResult = (v) => setMem({ result: v })
+
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState(null)
   const [modelStats, setModelStats] = useState(null)
@@ -111,6 +117,13 @@ export default function SmartTriage() {
             <div className="flex items-center gap-2">
               <Zap size={15} className="text-brand-600" />
               <span className="card-title">Analyse Incoming Incident</span>
+              {result && (
+                <button onClick={() => { clearMemory(); setError(null) }}
+                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-red-500 transition-colors ml-2 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-600 hover:border-red-300"
+                  title="Clear results and start a new search">
+                  <RotateCcw size={10} /> New Search
+                </button>
+              )}
             </div>
             {modelStats?.status === 'ready' && (
               <div className="flex gap-2 flex-wrap">
@@ -370,7 +383,225 @@ export default function SmartTriage() {
           </div>
         )}
 
+        {/* ── P1/P2 Priority Integrity Audit ───────────────────────── */}
+        <PriorityAuditPanel />
+
       </div>
+    </div>
+  )
+}
+
+// ── P1/P2 Priority Integrity Audit Panel ──────────────────────────────────────
+const VERDICT_CONFIG = {
+  CORRECT:    { badge: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',  icon: ShieldCheck, label: 'Correct' },
+  RECLASSIFY: { badge: 'bg-amber-100  text-amber-700  dark:bg-amber-900/40  dark:text-amber-300', icon: ShieldAlert, label: 'Reclassify' },
+}
+const P_COLOR_CLS = { 1:'text-red-600 font-black', 2:'text-orange-500 font-bold', 3:'text-amber-600 font-semibold', 4:'text-green-600' }
+
+function PriorityAuditPanel() {
+  const [open,     setOpen]     = useState(false)
+  const [loading,  setLoading]  = useState(false)
+  const [audit,    setAudit]    = useState(null)
+  const [error,    setError]    = useState(null)
+  const [defs,     setDefs]     = useState(null)
+  const [showDefs, setShowDefs] = useState(false)
+
+  useEffect(() => {
+    triageApi.priorityDefinitions()
+      .then(r => setDefs(r.data))
+      .catch(() => {})
+  }, [])
+
+  const runAudit = async () => {
+    setLoading(true); setError(null)
+    try {
+      const r = await triageApi.priorityAudit(20)
+      setAudit(r.data)
+    } catch (e) {
+      setError(e.response?.data?.detail || e.message || 'Audit failed')
+    } finally { setLoading(false) }
+  }
+
+  const correctPct     = audit ? Math.round((audit.correctly_classified / audit.total_audited) * 100) : 0
+  const reclassifyPct  = audit ? (100 - correctPct) : 0
+
+  return (
+    <div className="card">
+      <div className="card-header cursor-pointer select-none" onClick={() => setOpen(o => !o)}>
+        <div className="flex items-center gap-2">
+          <ShieldAlert size={15} className="text-amber-600" />
+          <span className="card-title">P1/P2 Priority Integrity Audit</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700 font-semibold">
+            SLB SOW compliance
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-slate-400 hidden md:block">Verify P1/P2 against contractual criteria · LLM-powered</span>
+          {open ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+        </div>
+      </div>
+
+      {open && (
+        <div className="p-5 space-y-5 border-t border-slate-100 dark:border-slate-700">
+
+          {/* Contract definitions */}
+          <div>
+            <button onClick={() => setShowDefs(d => !d)}
+              className="text-xs text-brand-600 hover:underline flex items-center gap-1">
+              {showDefs ? <ChevronUp size={11}/> : <ChevronDown size={11}/>}
+              {showDefs ? 'Hide' : 'View'} contractual P1/P2 definitions (SLB SOW)
+            </button>
+            {showDefs && defs && (
+              <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {[1,2].map(p => (
+                  <div key={p} className={clsx('rounded-xl p-4 border text-xs',
+                    p===1 ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20'
+                           : 'border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20')}>
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <span className={clsx('text-sm', P_COLOR_CLS[p])}>P{p}</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-200">{defs[p]?.label}</span>
+                      <span className="ml-auto text-slate-500 text-[10px]">{defs[p]?.response_sla} · {defs[p]?.resolution_sla}</span>
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed mb-2">{defs[p]?.criteria}</p>
+                    {defs[p]?.disqualifiers?.length > 0 && (
+                      <div>
+                        <p className="font-semibold text-red-600 dark:text-red-400 mb-1 text-[11px]">Disqualifiers (NOT P{p} if):</p>
+                        <ul className="space-y-0.5">
+                          {defs[p].disqualifiers.map((d, i) => (
+                            <li key={i} className="flex items-start gap-1 text-slate-500 dark:text-slate-400 text-[11px]">
+                              <span className="text-red-400 shrink-0">✗</span>{d}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Run button */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <button onClick={runAudit} disabled={loading} className="btn-primary flex items-center gap-2 shrink-0">
+              {loading
+                ? <><Loader2 size={13} className="animate-spin"/> Auditing…</>
+                : <><Play size={13}/> Run Priority Audit (top 20 P1/P2)</>}
+            </button>
+            <p className="text-xs text-slate-400">
+              Samples up to 20 P1/P2 incidents · evaluates against SLB contract criteria
+              {audit && <span className="ml-1 font-semibold">{audit.method === 'llm' ? '· LLM verified' : '· Rule-based fallback'}</span>}
+            </p>
+          </div>
+
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg px-3 py-2">{error}</div>
+          )}
+
+          {audit && (
+            <div className="space-y-4 animate-fade-in">
+              {/* Summary stat cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                {[
+                  { l:'Audited',             v: audit.total_audited,                                         cls:'text-slate-800 dark:text-slate-100' },
+                  { l:'P1 Reviewed',          v: audit.p1_count,                                              cls:'text-red-600' },
+                  { l:'P2 Reviewed',          v: audit.p2_count,                                              cls:'text-orange-500' },
+                  { l:'✓ Correct',            v: `${audit.correctly_classified} (${correctPct}%)`,            cls:'text-green-600' },
+                  { l:'⚠ Reclassify',        v: `${audit.total_audited-audit.correctly_classified} (${reclassifyPct}%)`, cls: reclassifyPct>30?'text-red-600':'text-amber-600' },
+                ].map(({ l, v, cls }) => (
+                  <div key={l} className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-3 text-center">
+                    <p className={clsx('text-lg font-black leading-tight', cls)}>{v}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{l}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Compliance bar */}
+              <div>
+                <div className="flex justify-between text-[10px] mb-1">
+                  <span className="text-green-600 font-semibold">{correctPct}% Correctly Classified</span>
+                  <span className={clsx('font-semibold', reclassifyPct>30?'text-red-600':'text-amber-600')}>
+                    {reclassifyPct}% Reclassification Recommended
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden flex">
+                  <div className="h-full bg-green-500 rounded-l-full" style={{ width:`${correctPct}%` }}/>
+                  <div className={clsx('h-full rounded-r-full', reclassifyPct>30?'bg-red-500':'bg-amber-500')}
+                    style={{ width:`${reclassifyPct}%` }}/>
+                </div>
+                {reclassifyPct > 30 && (
+                  <p className="text-[10px] text-red-600 font-semibold mt-1">
+                    ⚠ High reclassification rate detected — over-prioritisation inflates 24×7 support costs and erodes SLA credibility.
+                  </p>
+                )}
+              </div>
+
+              {/* Results table */}
+              <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-900/60">
+                    <tr>
+                      {['Incident','Description','Current P','Suggested P','Change','Confidence','Verdict','Reasoning'].map(h => (
+                        <th key={h} className="text-left px-3 py-2.5 text-[11px] font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                    {audit.audit_results.map((r, i) => {
+                      const cfg = VERDICT_CONFIG[r.verdict] || VERDICT_CONFIG.CORRECT
+                      const Icon = cfg.icon
+                      return (
+                        <tr key={i} className={clsx(
+                          'transition-colors',
+                          r.verdict !== 'CORRECT' ? 'bg-amber-50/50 dark:bg-amber-900/10' : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'
+                        )}>
+                          <td className="px-3 py-2 font-mono text-brand-600 dark:text-brand-400 whitespace-nowrap">{r.number}</td>
+                          <td className="px-3 py-2 text-slate-600 dark:text-slate-300 max-w-[180px]">
+                            <span className="truncate block" title={r.short_description}>{r.short_description}</span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={clsx('text-sm', P_COLOR_CLS[r.current_priority])}>P{r.current_priority}</span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={clsx('text-sm', P_COLOR_CLS[r.suggested_priority])}>P{r.suggested_priority}</span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={clsx('text-[10px] font-semibold px-1.5 py-0.5 rounded',
+                              r.delta < 0 ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                              r.delta > 0 ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                              'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400')}>
+                              {r.delta < 0 ? `↑${Math.abs(r.delta)} Escalate` : r.delta > 0 ? `↓${r.delta} Downgrade` : '= Correct'}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-12 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div className="h-full bg-brand-500 rounded-full"
+                                  style={{ width:`${Math.round(r.confidence*100)}%` }}/>
+                              </div>
+                              <span className="text-[10px] text-slate-500">{Math.round(r.confidence*100)}%</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 whitespace-nowrap">
+                            <span className={clsx('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold', cfg.badge)}>
+                              <Icon size={10}/>{cfg.label}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400 max-w-[220px]">
+                            <span className="leading-relaxed block text-[11px]">{r.reasoning}</span>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

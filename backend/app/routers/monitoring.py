@@ -73,11 +73,11 @@ def get_by_group(
     categories: Optional[List[str]] = Query(default=None),
 ):
     df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, None, priorities, categories, None, None))
-    grp = df.groupby(["first_assignment_group", "state"]).size().unstack(fill_value=0)
+    grp = df.groupby(["assignment_group", "state"]).size().unstack(fill_value=0)
     for col in ["Open", "In Progress", "On Hold", "Resolved", "Closed"]:
         if col not in grp.columns:
             grp[col] = 0
-    grp = grp.reset_index().rename(columns={"first_assignment_group": "group"})
+    grp = grp.reset_index().rename(columns={"assignment_group": "group"})
     grp["total"] = grp[["Open","In Progress","On Hold","Resolved","Closed"]].sum(axis=1)
     grp = grp.sort_values("total", ascending=False)
     return grp.to_dict(orient="records")
@@ -136,13 +136,13 @@ def get_priority_heatmap(
     categories: Optional[List[str]] = Query(default=None),
 ):
     df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, None, None, categories, None, None))
-    piv = df.pivot_table(index="first_assignment_group", columns="priority", values="number",
+    piv = df.pivot_table(index="assignment_group", columns="priority", values="number",
                           aggfunc="count", fill_value=0)
     for p in [1, 2, 3, 4]:
         if p not in piv.columns:
             piv[p] = 0
     piv = piv[[1, 2, 3, 4]].reset_index().rename(
-        columns={"first_assignment_group": "group", 1: "p1", 2: "p2", 3: "p3", 4: "p4"})
+        columns={"assignment_group": "group", 1: "p1", 2: "p2", 3: "p3", 4: "p4"})
     piv["total"] = piv[["p1","p2","p3","p4"]].sum(axis=1)
     return piv.sort_values("total", ascending=False).to_dict(orient="records")
 
@@ -160,7 +160,7 @@ def get_reopen_tracker(
         incident_count=("number", "count"),
     ).reset_index().rename(columns={"month": "period"})
     top_tickets = reopened.nlargest(10, "reopen_count")[
-        ["number","short_description","first_assignment_group","priority","reopen_count","state"]
+        ["number","short_description","assignment_group","priority","reopen_count","state"]
     ].to_dict(orient="records")
     return {
         "monthly_trend": monthly.to_dict(orient="records"),
@@ -195,7 +195,7 @@ def get_incidents(
         )
         df = df[mask]
 
-    valid_sort = ["created","priority","state","first_assignment_group","category","mttr_hours"]
+    valid_sort = ["created","priority","state","assignment_group","category","mttr_hours"]
     sort_col = sort_by if sort_by in valid_sort else "created"
     df = df.sort_values(sort_col, ascending=(sort_dir == "asc"))
 
@@ -203,7 +203,7 @@ def get_incidents(
     df_page = df.iloc[(page - 1) * limit : page * limit]
 
     display_cols = [
-        "number","created","impact_user","first_assignment_group","category","subcategory",
+        "number","created","impact_user","assignment_group","category","subcategory",
         "priority","priority_label","urgency","state","short_description","made_sla",
         "made_sla_bool","resolved","reopen_count","reassignment_count","mttr_hours",
         "assigned_to","resolution_code","resolution_notes",
@@ -273,7 +273,7 @@ def get_monthly_volume(
 def get_last_updated(limit: int = 15):
     df = get_dataframe()
     recent = df.nlargest(limit, "updated")[
-        ["number","updated","state","first_assignment_group","short_description","priority","updated_by"]
+        ["number","updated","state","assignment_group","short_description","priority","updated_by"]
     ].copy()
     recent["updated"] = recent["updated"].astype(str)
     return recent.to_dict(orient="records")

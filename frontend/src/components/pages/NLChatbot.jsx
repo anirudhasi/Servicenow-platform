@@ -6,6 +6,9 @@ import {
 import clsx from 'clsx'
 import Header from '../layout/Header'
 import { chatbot as chatbotApi } from '../../services/api'
+import { usePageMemory } from '../../hooks/usePageMemory'
+
+const CHAT_DEFAULTS = { messages: [], sessionId: null }
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
 // Handles bold, inline code, bullet lists, numbered lists, headers.
@@ -158,11 +161,15 @@ function SuggestionChip({ text, onClick }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function NLChatbot() {
-  const [messages, setMessages]   = useState([])
+  const [mem, setMem, clearMemory] = usePageMemory('chatbot', CHAT_DEFAULTS)
+  const messages   = mem.messages
+  const sessionId  = mem.sessionId
+  const setMessages  = (v) => setMem({ messages: typeof v === 'function' ? v(mem.messages) : v })
+  const setSessionId = (v) => setMem({ sessionId: v })
+
   const [input, setInput]         = useState('')
   const [loading, setLoading]     = useState(false)
-  const [sessionId, setSessionId] = useState(null)
-  const [status, setStatus]       = useState(null)    // { available, providers }
+  const [status, setStatus]       = useState(null)
   const [suggestions, setSuggestions] = useState([])
   const [error, setError]         = useState(null)
 
@@ -229,8 +236,7 @@ export default function NLChatbot() {
     if (sessionId) {
       chatbotApi.clearSession(sessionId).catch(() => {})
     }
-    setMessages([])
-    setSessionId(null)
+    clearMemory()
     setError(null)
     setTimeout(() => textareaRef.current?.focus(), 100)
   }

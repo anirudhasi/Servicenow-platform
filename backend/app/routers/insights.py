@@ -62,9 +62,9 @@ def get_monitoring_insights(
     # ── Top Overloaded Group ──
     active = df[df["state"].isin(["Open","In Progress","On Hold"])]
     if len(active):
-        top_group = active["first_assignment_group"].value_counts().idxmax()
-        top_count = active["first_assignment_group"].value_counts().max()
-        avg_active = len(active) / active["first_assignment_group"].nunique()
+        top_group = active["assignment_group"].value_counts().idxmax()
+        top_count = active["assignment_group"].value_counts().max()
+        avg_active = len(active) / active["assignment_group"].nunique()
         insights.append({
             "id": "group_load",
             "title": "Assignment Group Workload",

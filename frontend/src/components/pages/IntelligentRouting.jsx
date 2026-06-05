@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   Activity, AlertCircle, Users, Loader2, Info,
-  TrendingUp, Clock, ShieldCheck, ArrowRight,
+  TrendingUp, Clock, ShieldCheck, ArrowRight, RotateCcw,
 } from 'lucide-react'
 import clsx from 'clsx'
 import Header from '../layout/Header'
 import { routing as routingApi, monitoring as monitoringApi } from '../../services/api'
+import { usePageMemory } from '../../hooks/usePageMemory'
+
+const DEFAULTS = {
+  form: { short_description: '', service_offering: '', category: '', priority: '3', use_llm: true },
+  result: null,
+}
 
 // ── Priority config ───────────────────────────────────────────────────────────
 const PRI = {
@@ -73,14 +79,12 @@ function StatCell({ label, value, icon: Icon, iconColor }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function IntelligentRouting() {
-  const [form, setForm] = useState({
-    short_description: '',
-    service_offering: '',
-    category: '',
-    priority: '3',
-    use_llm: true,
-  })
-  const [result, setResult]     = useState(null)
+  const [mem, setMem, clearMemory] = usePageMemory('routing', DEFAULTS)
+  const form   = mem.form
+  const result = mem.result
+  const setForm   = (v) => setMem({ form: typeof v === 'function' ? v(mem.form) : v })
+  const setResult = (v) => setMem({ result: v })
+
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState(null)
   const [categories, setCategories] = useState([])
@@ -131,6 +135,13 @@ export default function IntelligentRouting() {
             <div className="flex items-center gap-2">
               <Activity size={15} className="text-brand-600" />
               <span className="card-title">Incident Routing Prediction</span>
+              {result && (
+                <button onClick={() => { clearMemory(); setError(null) }}
+                  className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-red-500 transition-colors ml-2 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-600 hover:border-red-300"
+                  title="Clear results and start a new search">
+                  <RotateCcw size={10} /> New Search
+                </button>
+              )}
             </div>
           </div>
 

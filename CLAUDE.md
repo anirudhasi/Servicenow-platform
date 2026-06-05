@@ -113,13 +113,10 @@ All incidents share these fields (matching ServiceNow export):
 | resolution_code | str | Resolution category |
 | resolution_notes | str | Free text |
 
-**Assignment groups in data:**
-- DPS-McLean WEB (25%)
-- DPS-Global Service Desk (30%)
-- DPS-Materials WFR (20%)
-- DPS-Network Operations (12%)
-- DPS-Security Team (7%)
-- DPS-Infrastructure (6%)
+**Assignment groups in data (real SLB groups):**
+- DPS-WEB-L2 (55%) — 69 possible first-assignment-group sources
+- Global-Traceability-L2 (30%) — 28 possible first-assignment-group sources
+- CG-DPS-Automation-L2 (15%) — 8 possible first-assignment-group sources
 
 ---
 
@@ -166,7 +163,7 @@ All endpoints accept these standard query params (built by `buildParams()` in `a
 ```
 date_from  = "YYYY-MM-DD"
 date_to    = "YYYY-MM-DD"
-groups     = ["DPS-McLean WEB", ...]    (multi-value)
+groups     = ["DPS-WEB-L2", ...]        (multi-value)
 priorities = [1, 2, 3, 4]              (multi-value ints)
 categories = ["Hardware", ...]          (multi-value)
 states     = ["Open", "Resolved", ...]  (multi-value)

@@ -6,13 +6,13 @@ import {
 } from 'recharts'
 import {
   AlertTriangle, Activity, Clock, RefreshCw, RotateCcw, CheckCircle2,
-  Users, TrendingDown, Search, ChevronLeft, ChevronRight, ArrowUpDown
+  Users, TrendingDown,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { monitoring as monApi, insights as insApi, buildParams } from '../../services/api'
 import Header from '../layout/Header'
 import {
-  KPICard, InsightCard, FilterBar, DrilldownModal,
+  KPICard, InsightCard, FilterBar,
   SkeletonCard, CustomTooltip, EmptyState
 } from '../common/index.jsx'
 import clsx from 'clsx'
@@ -97,178 +97,6 @@ function PriorityHeatmap({ data = [] }) {
 const BADGE_P = { 1: 'badge-p1', 2: 'badge-p2', 3: 'badge-p3', 4: 'badge-p4' }
 const BADGE_S = { Open:'badge-open','In Progress':'badge-in-progress','On Hold':'badge-on-hold',Resolved:'badge-resolved',Closed:'badge-closed' }
 
-function IncidentTable({ filters }) {
-  const [page, setPage]     = useState(1)
-  const [search, setSearch] = useState('')
-  const [sortBy, setSortBy] = useState('created')
-  const [sortDir, setSortDir] = useState('desc')
-  const [data, setData]     = useState({ data: [], total: 0, total_pages: 1 })
-  const [loading, setLoading] = useState(false)
-  const [drilldown, setDrilldown] = useState(null)
-
-  useEffect(() => { setPage(1) }, [filters, search])
-
-  useEffect(() => {
-    setLoading(true)
-    const params = { ...buildParams(filters), page, limit: 25, search, sort_by: sortBy, sort_dir: sortDir }
-    monApi.incidents(params).then(r => setData(r.data)).catch(console.error).finally(() => setLoading(false))
-  }, [page, search, sortBy, sortDir, filters])
-
-  const toggleSort = col => {
-    if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortBy(col); setSortDir('desc') }
-  }
-
-  const COLS = [
-    { key: 'number',               label: 'Number',     sortable: true },
-    { key: 'created',              label: 'Created',    sortable: true },
-    { key: 'first_assignment_group',label: 'Group',     sortable: true },
-    { key: 'category',             label: 'Category',   sortable: true },
-    { key: 'priority',             label: 'Priority',   sortable: true },
-    { key: 'state',                label: 'State',      sortable: true },
-    { key: 'made_sla',             label: 'SLA',        sortable: false },
-    { key: 'short_description',    label: 'Description',sortable: false },
-    { key: 'mttr_hours',           label: 'MTTR(h)',    sortable: true },
-  ]
-
-  return (
-    <div className="card flex flex-col">
-      <div className="card-header">
-        <span className="card-title">Live Incident Register</span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">{data.total?.toLocaleString()} total</span>
-          <div className="relative">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Search tickets…"
-              className="pl-8 pr-3 py-1.5 text-xs border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 focus:border-brand-500 focus:outline-none w-48"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto flex-1">
-        <table className="w-full text-xs">
-          <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0">
-            <tr>
-              {COLS.map(c => (
-                <th key={c.key} onClick={() => c.sortable && toggleSort(c.key)}
-                  className={clsx('text-left px-3 py-2.5 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wide whitespace-nowrap select-none',
-                    c.sortable && 'cursor-pointer hover:text-brand-600')}>
-                  <span className="flex items-center gap-1">
-                    {c.label}
-                    {c.sortable && <ArrowUpDown size={10} className={sortBy === c.key ? 'text-brand-500' : ''} />}
-                  </span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className={clsx('divide-y divide-slate-100 dark:divide-slate-700/50', loading && 'opacity-50')}>
-            {data.data.map((row, i) => (
-              <tr key={i}
-                onClick={() => setDrilldown(row)}
-                className="hover:bg-brand-50 dark:hover:bg-brand-900/10 cursor-pointer transition-colors">
-                <td className="px-3 py-2 font-mono text-brand-600 dark:text-brand-400 font-semibold">{row.number}</td>
-                <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{row.created?.slice(0,16)}</td>
-                <td className="px-3 py-2 text-slate-600 dark:text-slate-300 max-w-[120px] truncate">{row.first_assignment_group?.replace('DPS-','')}</td>
-                <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{row.category}</td>
-                <td className="px-3 py-2"><span className={BADGE_P[row.priority]}>P{row.priority}</span></td>
-                <td className="px-3 py-2"><span className={BADGE_S[row.state] || 'badge'}>{row.state}</span></td>
-                <td className="px-3 py-2">
-                  <span className={row.made_sla_bool ? 'text-green-600 font-semibold' : 'text-red-500 font-semibold'}>
-                    {row.made_sla_bool ? '✓' : '✗'}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-slate-600 dark:text-slate-300 max-w-[200px] truncate">{row.short_description}</td>
-                <td className="px-3 py-2 text-slate-600 dark:text-slate-300">
-                  {row.mttr_hours ? `${Number(row.mttr_hours).toFixed(1)}h` : '—'}
-                </td>
-              </tr>
-            ))}
-            {!loading && !data.data.length && (
-              <tr><td colSpan={9}><EmptyState /></td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Pagination */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 dark:border-slate-700">
-        <span className="text-xs text-slate-500">
-          Page {data.total_pages ? page : 0} of {data.total_pages}
-        </span>
-        <div className="flex gap-1">
-          <button disabled={page <= 1} onClick={() => setPage(p => p-1)}
-            className="btn-ghost p-1.5 disabled:opacity-40"><ChevronLeft size={14} /></button>
-          {Array.from({ length: Math.min(5, data.total_pages || 1) }, (_, i) => {
-            const pg = Math.max(1, page - 2) + i
-            if (pg > (data.total_pages || 1)) return null
-            return (
-              <button key={pg} onClick={() => setPage(pg)}
-                className={clsx('btn text-xs w-7 h-7 justify-center', pg === page ? 'btn-primary' : 'btn-ghost')}>
-                {pg}
-              </button>
-            )
-          })}
-          <button disabled={page >= (data.total_pages || 1)} onClick={() => setPage(p => p+1)}
-            className="btn-ghost p-1.5 disabled:opacity-40"><ChevronRight size={14} /></button>
-        </div>
-      </div>
-
-      {/* Drilldown detail modal */}
-      {drilldown && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl animate-fade-in">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-brand-600 dark:text-brand-400 font-bold">{drilldown.number}</span>
-                <span className={BADGE_P[drilldown.priority]}>P{drilldown.priority}</span>
-                <span className={BADGE_S[drilldown.state] || 'badge'}>{drilldown.state}</span>
-              </div>
-              <button onClick={() => setDrilldown(null)} className="btn-ghost p-1.5 text-slate-400">✕</button>
-            </div>
-            <div className="px-6 py-4 space-y-3">
-              <div>
-                <p className="text-xs text-slate-500 font-medium mb-1">Description</p>
-                <p className="text-sm text-slate-700 dark:text-slate-200">{drilldown.short_description}</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                {[
-                  ['Group', drilldown.first_assignment_group],
-                  ['Category', drilldown.category],
-                  ['Assigned To', drilldown.assigned_to],
-                  ['Created', drilldown.created?.slice(0,16)],
-                  ['Resolved', drilldown.resolved?.slice(0,16) || '—'],
-                  ['MTTR', drilldown.mttr_hours ? `${Number(drilldown.mttr_hours).toFixed(1)} hrs` : '—'],
-                  ['SLA', drilldown.made_sla_bool ? '✓ Met' : '✗ Breached'],
-                  ['Reassignments', drilldown.reassignment_count],
-                  ['Reopen Count', drilldown.reopen_count],
-                  ['Resolution Code', drilldown.resolution_code || '—'],
-                ].map(([k,v]) => (
-                  <div key={k}>
-                    <p className="text-slate-400 font-medium">{k}</p>
-                    <p className="text-slate-700 dark:text-slate-200 font-semibold">{v}</p>
-                  </div>
-                ))}
-              </div>
-              {drilldown.resolution_notes && (
-                <div>
-                  <p className="text-xs text-slate-500 font-medium mb-1">Resolution Notes</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 leading-relaxed">
-                    {drilldown.resolution_notes}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── Activity Feed ─────────────────────────────────────────────────────────────
 function ActivityFeed() {
   const [items, setItems] = useState([])
@@ -288,7 +116,7 @@ function ActivityFeed() {
               <span className="text-[10px] text-slate-400 shrink-0">{item.updated?.slice(0,16)}</span>
             </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-300 truncate">{item.short_description}</p>
-            <p className="text-[10px] text-slate-400">{item.first_assignment_group?.replace('DPS-','')} · {item.updated_by}</p>
+            <p className="text-[10px] text-slate-400">{item.assignment_group?.replace('DPS-','')} · {item.updated_by}</p>
           </div>
         </div>
       ))}
@@ -569,8 +397,6 @@ export default function MonitoringDashboard() {
           </div>
         )}
 
-        {/* Row 6: Incident Table */}
-        <IncidentTable filters={filters} />
       </div>
     </div>
   )

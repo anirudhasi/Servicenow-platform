@@ -4,7 +4,7 @@ ML model trainer — M3 Smart Triage + M4 Intelligent Routing.
 Three calibrated LinearSVC pipelines trained from incidents.csv:
   category_pipe  : TF-IDF → incident category
   priority_pipe  : TF-IDF → priority (1–4)
-  group_pipe     : TF-IDF → first_assignment_group
+  group_pipe     : TF-IDF → assignment_group
 
 A TF-IDF similarity index enables nearest-neighbour lookups for
 surface-similar past incidents.  All training runs in a daemon thread
@@ -121,14 +121,14 @@ class IncidentMLModels:
 
         # ── Assignment Group ──────────────────────────────────────────────────
         grp_mask = (
-            df["first_assignment_group"].notna()
-            & (df["first_assignment_group"].str.strip() != "")
+            df["assignment_group"].notna()
+            & (df["assignment_group"].str.strip() != "")
         )
-        pipe, acc = self._fit_pipe(df.loc[grp_mask, "_text"], df.loc[grp_mask, "first_assignment_group"], "group")
+        pipe, acc = self._fit_pipe(df.loc[grp_mask, "_text"], df.loc[grp_mask, "assignment_group"], "group")
         self.group_pipe = pipe
         self.stats.update(
             group_accuracy=round(acc, 3),
-            group_classes=int(df.loc[grp_mask, "first_assignment_group"].nunique()),
+            group_classes=int(df.loc[grp_mask, "assignment_group"].nunique()),
         )
 
         # ── Similarity index ──────────────────────────────────────────────────
@@ -137,7 +137,7 @@ class IncidentMLModels:
         self.sim_matrix = self.tfidf_sim.fit_transform(texts)
         self._df_ref = df[[
             "number", "short_description", "category", "priority",
-            "state", "first_assignment_group", "resolution_notes",
+            "state", "assignment_group", "resolution_notes",
             "made_sla_bool", "mttr_hours",
         ]].reset_index(drop=True)
         logger.info(f"Similarity index: {self.sim_matrix.shape[0]} vectors")
@@ -215,7 +215,7 @@ class IncidentMLModels:
                     "category":   str(row.get("category", "")),
                     "priority":   int(row["priority"]) if pd.notna(row.get("priority")) else 3,
                     "state":      str(row.get("state", "")),
-                    "group":      str(row.get("first_assignment_group", "")),
+                    "group":      str(row.get("assignment_group", "")),
                     "resolution": str(row.get("resolution_notes", ""))[:250] if pd.notna(row.get("resolution_notes")) else "",
                     "similarity": round(score, 3),
                     "mttr_hours": round(float(mttr), 1) if pd.notna(mttr) else None,
