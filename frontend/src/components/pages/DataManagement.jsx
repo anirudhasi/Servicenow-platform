@@ -6,8 +6,8 @@
  *   - External data sources (surveys, metrics, custom fields)
  *   - Data reconciliation and deduplication
  */
-import { useState, useCallback } from 'react'
-import { Upload, X, Check, AlertCircle, FileText, Database, TrendingUp } from 'lucide-react'
+import { useState, useCallback, useEffect } from 'react'
+import { Upload, X, Check, AlertCircle, FileText, Database, TrendingUp, ShieldAlert, RefreshCw } from 'lucide-react'
 import clsx from 'clsx'
 import Header from '../layout/Header'
 import { data as dataApi } from '../../services/api'
@@ -105,7 +105,23 @@ export default function DataManagement() {
   const [uploads, setUploads] = useState([])
   const [dataSources, setDataSources] = useState([])
   const [loading, setLoading] = useState(false)
+  const [loadingSources, setLoadingSources] = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
+
+  // Load data sources on mount
+  useEffect(() => {
+    const loadSources = async () => {
+      try {
+        const res = await dataApi.sources()
+        setDataSources(res.data?.sources || [])
+      } catch (err) {
+        console.error('Failed to load data sources:', err)
+      } finally {
+        setLoadingSources(false)
+      }
+    }
+    loadSources()
+  }, [refreshKey])
 
   const handleFileSelect = useCallback(async (fileType, event) => {
     const file = event.target.files?.[0]
@@ -165,7 +181,7 @@ export default function DataManagement() {
             <span className="card-title">Import New Data</span>
             <span className="text-xs text-slate-400">Supported: CSV, Excel (.xlsx), JSON</span>
           </div>
-          <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-5 grid grid-cols-1 md:grid-cols-4 gap-4">
             <ImportCard
               title="Incident Data"
               description="Append or merge additional incident records from ServiceNow export"
@@ -179,6 +195,13 @@ export default function DataManagement() {
               icon={TrendingUp}
               accept=".csv,.xlsx,.json"
               onFileSelect={(e) => handleFileSelect('surveys', e)}
+            />
+            <ImportCard
+              title="SLA Breach Data"
+              description="Pre-analyzed SLA breach records with assignment age & escalation metrics"
+              icon={ShieldAlert}
+              accept=".csv,.xlsx,.json"
+              onFileSelect={(e) => handleFileSelect('sla_breach', e)}
             />
             <ImportCard
               title="Custom Metrics"
@@ -216,23 +239,41 @@ export default function DataManagement() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Active Data Sources</span>
-            <span className="text-xs text-slate-400">All imported data is merged and available for analysis</span>
+            <button onClick={() => setRefreshKey(k => k + 1)} disabled={loadingSources} className="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 transition flex items-center gap-1">
+              <RefreshCw size={12} className={loadingSources ? 'animate-spin' : ''} /> Refresh
+            </button>
           </div>
           <div className="p-4 space-y-3">
-            <DataSourceCard
-              name="ServiceNow Incidents"
-              type="Primary"
-              lastUpdated="Today"
-              recordCount={1200}
-              actions={
-                <button className="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 transition">
-                  Reload
-                </button>
-              }
-            />
-            <div className="text-xs text-slate-400 text-center py-4">
-              No additional data sources imported yet. Upload files above to merge external data.
-            </div>
+            {loadingSources ? (
+              <div className="text-center py-6">
+                <div className="inline-block w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+                <p className="text-xs text-slate-400 mt-2">Loading data sources...</p>
+              </div>
+            ) : dataSources.length > 0 ? (
+              dataSources.map((source, i) => (
+                <DataSourceCard
+                  key={i}
+                  name={source.name}
+                  type={source.type}
+                  lastUpdated={source.last_updated?.split('T')[0] || 'Unknown'}
+                  recordCount={source.records}
+                  actions={source.type === 'Primary' ? (
+                    <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-semibold">
+                      Active
+                    </span>
+                  ) : (
+                    <span className="text-xs px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 font-semibold">
+                      Merged
+                    </span>
+                  )}
+                />
+              ))
+            ) : (
+              <div className="text-xs text-slate-400 text-center py-6">
+                <p className="mb-2">Primary data source only (ServiceNow)</p>
+                <p className="text-[11px] text-slate-500">Import additional data using the upload cards above</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -249,6 +290,10 @@ export default function DataManagement() {
             <div>
               <p className="font-bold text-slate-700 dark:text-slate-200 mb-2">Survey / CSAT Data</p>
               <p>Include a column matching incident number (INC*) to link CSAT scores and feedback. Available for M2 Trend Analysis charts.</p>
+            </div>
+            <div>
+              <p className="font-bold text-slate-700 dark:text-slate-200 mb-2">SLA Breach Data</p>
+              <p>Pre-calculated SLA breach metrics with assignment age, hold times, and escalation risks. Directly enriches M6 SLA Risk Board with detailed breach analysis and ownership tracking.</p>
             </div>
             <div>
               <p className="font-bold text-slate-700 dark:text-slate-200 mb-2">Custom Metrics</p>

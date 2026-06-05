@@ -497,43 +497,43 @@ export default function SLABreachAnalysis() {
         {/* ── ROW 5: REASSIGNMENT IMPACT + ON HOLD RISK ───────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
-          <Panel title="Reassignment-to-Breach Correlation (Bubble Chart)" height={270}
-            subtitle="Strong correlation: more reassignments = higher breach rate. Bubble size = ticket volume · color intensity = SLA elapsed %"
-            badge="Root Cause Analysis">
+          <Panel title="MTTR Impact — Resolution Time by Reassignment Count" height={270}
+            subtitle="Tickets with more reassignments take longer to resolve · bar = avg resolution hours · red zone = critical delays"
+            badge="Resolution Quality">
             {loading ? <SkeletonCard h="h-full" /> : reassign.length ? (
               <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ left:-5, right:30, top:20, bottom:5 }} data={reassign}>
+                <ComposedChart data={reassign} margin={{ left:-10, right:20 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="reassignment_count" type="number" tick={{ fontSize:10 }}
-                    label={{ value:'Reassignment Count', fontSize:9, position:'insideBottom', offset:-8 }}
-                    domain={[0, 'dataMax+0.5']} />
-                  <YAxis dataKey="breach_rate" type="number" tick={{ fontSize:10 }} tickFormatter={v=>`${v}%`}
-                    label={{ value:'Breach Rate (%)', angle:-90, position:'insideLeft' }} />
-                  <Tooltip cursor={{ strokeDasharray:'3 3' }} content={({ active, payload }) => {
+                  <XAxis dataKey="reassignment_count" tick={{ fontSize:10 }}
+                    label={{ value:'Number of Reassignments', fontSize:9, position:'insideBottom', offset:-3 }} />
+                  <YAxis yAxisId="l" tick={{ fontSize:10 }} label={{ value:'Avg MTTR (hours)', angle:-90, position:'insideLeft' }} />
+                  <YAxis yAxisId="r" orientation="right" tick={{ fontSize:10 }} tickFormatter={v=>`${v}%`}
+                    label={{ value:'Breach Rate', angle:90, position:'insideRight' }} />
+                  <Tooltip content={({ active, payload }) => {
                     if (!active||!payload?.length) return null
                     const d = payload[0]?.payload||{}
                     return (
                       <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow p-3 text-xs">
-                        <p className="font-bold text-slate-700 dark:text-slate-200 mb-1">Reassignment Impact</p>
-                        <p className="text-slate-600 dark:text-slate-300">Count: <b>{d.reassignment_count}</b> reassignment{d.reassignment_count>1?'s':''}</p>
-                        <p className="text-red-600">Breach Rate: <b>{d.breach_rate}%</b></p>
+                        <p className="font-bold text-slate-700 dark:text-slate-200 mb-1">{d.reassignment_count} Reassignment{d.reassignment_count>1?'s':''}</p>
+                        <p className="text-blue-600">Avg MTTR: <b>{d.avg_mttr_hours?.toFixed(1) || '—'}h</b></p>
                         <p className="text-orange-600">Avg Elapsed: <b>{d.avg_elapsed_pct}%</b></p>
+                        <p className="text-red-600">Breach Rate: <b>{d.breach_rate}%</b></p>
                         <p className="text-slate-500">Tickets: <b>{d.count}</b></p>
-                        <p className="text-blue-600">Avg Delay: <b>{d.avg_delay_hours}h</b></p>
                       </div>
                     )
                   }} />
-                  <Scatter dataKey="breach_rate" name="Correlation">
+                  <Legend wrapperStyle={{ fontSize:10 }} />
+                  <Bar yAxisId="l" dataKey="avg_mttr_hours" name="Avg MTTR (hours)" radius={[3,3,0,0]}>
                     {reassign.map((d,i) => {
-                      const sev = d.avg_elapsed_pct>75?'#EF4444':d.avg_elapsed_pct>50?'#F97316':'#F59E0B'
-                      const r = Math.max(4, Math.min(20, Math.sqrt(d.count)*1.2))
-                      return (
-                        <Cell key={i} fill={sev} fillOpacity={0.7} radius={r} />
-                      )
+                      const severity = d.avg_mttr_hours > 120 ? '#EF4444' : d.avg_mttr_hours > 72 ? '#F97316' : '#F59E0B'
+                      return <Cell key={i} fill={severity} />
                     })}
-                  </Scatter>
-                  <ReferenceLine y={15} stroke="#94A3B8" strokeDasharray="3 3" label={{ value:'15% breach threshold', fontSize:8, fill:'#94A3B8', position:'right' }} />
-                </ScatterChart>
+                  </Bar>
+                  <Line yAxisId="r" type="monotone" dataKey="breach_rate" name="Breach Rate (%)"
+                    stroke="#EF4444" strokeWidth={2} dot={{ r:4, fill:'#EF4444' }} />
+                  <ReferenceLine yAxisId="l" y={72} stroke="#F59E0B" strokeDasharray="3 3"
+                    label={{ value:'3-day MTTR', fontSize:8, fill:'#F59E0B', position:'right' }} />
+                </ComposedChart>
               </ResponsiveContainer>
             ) : <EmptyState />}
           </Panel>

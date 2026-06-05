@@ -412,14 +412,29 @@ function PriorityAuditPanel() {
       .catch(() => {})
   }, [])
 
+  const [auditProgress, setAuditProgress] = useState(0)
+
   const runAudit = async () => {
-    setLoading(true); setError(null)
+    setLoading(true); setError(null); setAuditProgress(0)
+
+    // Simulate progress
+    const progressInterval = setInterval(() => {
+      setAuditProgress(p => Math.min(p + Math.random() * 20, 90))
+    }, 200)
+
     try {
       const r = await triageApi.priorityAudit(20)
+      clearInterval(progressInterval)
+      setAuditProgress(100)
       setAudit(r.data)
+      setTimeout(() => setAuditProgress(0), 500)
     } catch (e) {
+      clearInterval(progressInterval)
       setError(e.response?.data?.detail || e.message || 'Audit failed')
-    } finally { setLoading(false) }
+      setAuditProgress(0)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const correctPct     = audit ? Math.round((audit.correctly_classified / audit.total_audited) * 100) : 0
@@ -482,16 +497,38 @@ function PriorityAuditPanel() {
           </div>
 
           {/* Run button */}
-          <div className="flex items-center gap-4 flex-wrap">
-            <button onClick={runAudit} disabled={loading} className="btn-primary flex items-center gap-2 shrink-0">
-              {loading
-                ? <><Loader2 size={13} className="animate-spin"/> Auditing…</>
-                : <><Play size={13}/> Run Priority Audit (top 20 P1/P2)</>}
-            </button>
-            <p className="text-xs text-slate-400">
-              Samples up to 20 P1/P2 incidents · evaluates against SLB contract criteria
-              {audit && <span className="ml-1 font-semibold">{audit.method === 'llm' ? '· LLM verified' : '· Rule-based fallback'}</span>}
-            </p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 flex-wrap">
+              <button onClick={runAudit} disabled={loading} className="btn-primary flex items-center gap-2 shrink-0">
+                {loading
+                  ? <><Loader2 size={13} className="animate-spin"/> Auditing…</>
+                  : <><Play size={13}/> Run Priority Audit (top 20 P1/P2)</>}
+              </button>
+              <p className="text-xs text-slate-400">
+                Samples up to 20 P1/P2 incidents · evaluates against SLB contract criteria
+                {audit && <span className="ml-1 font-semibold">{audit.method === 'llm' ? '· LLM verified' : '· Rule-based fallback'}</span>}
+              </p>
+            </div>
+
+            {/* Progress indicator */}
+            {loading && (
+              <div className="space-y-2 bg-slate-50 dark:bg-slate-900/30 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Audit Progress</span>
+                  <span className="text-xs font-bold text-brand-600">{Math.round(auditProgress)}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-brand-500 to-brand-600 rounded-full transition-all"
+                    style={{ width: `${auditProgress}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <Loader2 size={10} className="animate-spin" />
+                  Evaluating incidents against SLB contract criteria...
+                </div>
+              </div>
+            )}
           </div>
 
           {error && (

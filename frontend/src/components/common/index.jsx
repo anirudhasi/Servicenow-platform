@@ -14,30 +14,36 @@ export function KPICard({ title, value, unit = '', sub, trend, trendDir = 'neutr
   const TrendIcon = trendDir === 'up' ? TrendingUp : trendDir === 'down' ? TrendingDown : Minus
   const trendColor = trendDir === 'up' ? 'text-red-500' : trendDir === 'down' ? 'text-green-500' : 'text-slate-400'
 
+  // Dynamic text sizing based on value length
+  const valueStr = value?.toLocaleString() || '—'
+  const textSize = valueStr.length > 10 ? 'text-lg' : valueStr.length > 6 ? 'text-xl' : 'text-2xl'
+  const unitSize = valueStr.length > 10 ? 'text-xs' : 'text-sm'
+
   return (
-    <div className="card p-5 animate-fade-in">
-      <div className="flex items-start justify-between">
+    <div className="card p-4 animate-fade-in h-full flex flex-col">
+      <div className="flex items-start justify-between gap-2 flex-1">
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide truncate">{title}</p>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide truncate leading-tight">{title}</p>
           {loading ? (
-            <div className="mt-2 h-8 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+            <div className="mt-2 h-7 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
           ) : (
-            <p className="mt-1 text-2xl font-bold text-slate-800 dark:text-slate-100 leading-none">
-              {value?.toLocaleString()}<span className="text-sm font-normal text-slate-500 ml-1">{unit}</span>
+            <p className={clsx('mt-2 font-bold text-slate-800 dark:text-slate-100 leading-tight break-words', textSize)}>
+              {valueStr}
+              {unit && <span className={clsx('font-normal text-slate-500 dark:text-slate-400 ml-1', unitSize)}>{unit}</span>}
             </p>
           )}
-          {sub && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{sub}</p>}
+          {sub && <p className="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">{sub}</p>}
         </div>
         {Icon && (
-          <div className={clsx('w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ml-3', colors[color])}>
-            <Icon size={18} />
+          <div className={clsx('w-9 h-9 rounded-lg flex items-center justify-center shrink-0', colors[color])}>
+            <Icon size={16} />
           </div>
         )}
       </div>
       {trend && (
         <div className={clsx('mt-2 flex items-center gap-1 text-xs font-medium', trendColor)}>
           <TrendIcon size={12} />
-          <span>{trend}</span>
+          <span className="truncate">{trend}</span>
         </div>
       )}
     </div>

@@ -67,6 +67,8 @@ async def import_data(
             result = _merge_incidents(df_new, filename)
         elif data_type == "surveys":
             result = _merge_surveys(df_new, filename)
+        elif data_type == "sla_breach":
+            result = _merge_sla_breach(df_new, filename)
         elif data_type == "metrics":
             result = _merge_metrics(df_new, filename)
         else:
@@ -146,6 +148,40 @@ def _merge_surveys(df_new: pd.DataFrame, source_name: str) -> dict:
     linked = len(df_new[df_new[incident_col].isin(df_existing.get("number", []))])
 
     logger.info(f"Survey import: {linked}/{len(df_new)} records linked to existing incidents")
+
+    return {
+        "records_imported": len(df_new),
+        "records_merged": linked,
+        "duplicates_skipped": len(df_new) - linked,
+        "validation_warnings": 0,
+    }
+
+
+def _merge_sla_breach(df_new: pd.DataFrame, source_name: str) -> dict:
+    """Merge SLA breach data with existing incident pool."""
+    df_existing = get_dataframe()
+
+    # Expect columns: incident_number (or number), sla_status, elapsed_pct, etc.
+    incident_col = None
+    for col in df_new.columns:
+        if "incident" in col.lower() or "number" in col.lower():
+            incident_col = col
+            break
+
+    if not incident_col:
+        logger.warning(f"No incident_number column found in {source_name}")
+        return {
+            "records_imported": len(df_new),
+            "records_merged": 0,
+            "duplicates_skipped": 0,
+            "validation_warnings": 1,
+        }
+
+    # Link SLA breach data to existing incidents
+    df_new_renamed = df_new.rename(columns={incident_col: "number"})
+    linked = len(df_new[df_new[incident_col].isin(df_existing.get("number", []))])
+
+    logger.info(f"SLA breach import: {linked}/{len(df_new)} records linked to existing incidents")
 
     return {
         "records_imported": len(df_new),
