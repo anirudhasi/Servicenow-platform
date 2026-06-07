@@ -231,12 +231,17 @@ def get_incidents(
         for col in available:
             val = row[col]
             # Convert NaT, NaN, and inf to None (JSON null)
-            if pd.isna(val) or (isinstance(val, float) and np.isinf(val)):
-                rec[col] = None
-            elif isinstance(val, (pd.Timestamp, pd.Timedelta)):
+            try:
+                if pd.isna(val):
+                    rec[col] = None
+                elif isinstance(val, float) and np.isinf(val):
+                    rec[col] = None
+                elif isinstance(val, (pd.Timestamp, pd.Timedelta)):
+                    rec[col] = str(val)
+                else:
+                    rec[col] = val
+            except:
                 rec[col] = str(val)
-            else:
-                rec[col] = val
         records.append(rec)
 
     return {
