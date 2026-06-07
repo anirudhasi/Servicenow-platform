@@ -223,17 +223,24 @@ def get_incidents(
     ]
     available = [c for c in display_cols if c in df_page.columns]
     result = df_page[available].copy()
-    result["created"]  = result["created"].astype(str)
-    result["resolved"] = result["resolved"].astype(str)
+
+    # Convert dates to strings and handle NaT values
+    result["created"]  = result["created"].fillna("").astype(str)
+    result["resolved"] = result["resolved"].fillna("").astype(str)
+
+    # Fill NaN values in numeric columns with None/null
+    for col in result.columns:
+        if result[col].dtype in ['float64', 'float32', 'int64', 'int32']:
+            result[col] = result[col].where(pd.notna(result[col]), None)
 
     data_dict = result.to_dict(orient="records")
-    return _clean_nan({
+    return {
         "data":        data_dict,
         "total":       total,
         "page":        page,
         "limit":       limit,
         "total_pages": max(1, (total + limit - 1) // limit),
-    })
+    }
 
 
 @router.get("/top-services")
