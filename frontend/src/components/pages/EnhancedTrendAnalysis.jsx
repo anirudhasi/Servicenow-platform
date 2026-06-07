@@ -10,7 +10,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import {
-  BarChart, Bar, LineChart, Line, HeatMap, ScatterChart, Scatter,
+  BarChart, Bar, LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
   ComposedChart,
 } from 'recharts'
@@ -418,7 +418,7 @@ export default function EnhancedTrendAnalysis() {
           <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Dynamic Grouping Logic:</p>
           <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
             <li>• <span className="font-semibold">≤ 10 groups:</span> Show all groups individually</li>
-            <li>• <span className="font-semibold">> 10 groups:</span> Show top 10 + "Others" (sum of remaining)</li>
+            <li>• <span className="font-semibold">&gt; 10 groups:</span> Show top 10 + "Others" (sum of remaining)</li>
             <li>• <span className="font-semibold">Heatmap:</span> Always shows top 15 groups by P1+P2 volume</li>
             <li>• <span className="font-semibold">Real-time:</span> All charts update instantly with filter changes</li>
           </ul>
