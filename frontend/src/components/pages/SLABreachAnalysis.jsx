@@ -24,6 +24,7 @@ import {
 import clsx from 'clsx'
 import Header from '../layout/Header'
 import DateFilter from '../common/DateFilter'
+import { TowerFilter, SDMFilter } from '../common/TowerSDMFilter.jsx'
 import { breach as breachApi } from '../../services/api'
 import { SkeletonCard, CustomTooltip, EmptyState } from '../common/index.jsx'
 
@@ -126,6 +127,9 @@ export default function SLABreachAnalysis() {
   const [onHold,    setOnHold]    = useState(null)
   const [scorecard, setScorecard] = useState(null)
   const [dateRange, setDateRange] = useState({ from: '', to: '' })
+  const [towers, setTowers] = useState([])
+  const [sdms, setSDMs] = useState([])
+  const [filterOpts, setFilterOpts] = useState({})
   const [loading,   setLoading]   = useState(true)
   const [refreshKey,setRefreshKey]= useState(0)
 
@@ -158,7 +162,13 @@ export default function SLABreachAnalysis() {
     }).finally(() => setLoading(false))
   }, [])
 
-  useEffect(() => { loadAll() }, [loadAll, refreshKey])
+  useEffect(() => {
+    // Load filter options
+    import('../../services/api').then(api => {
+      api.monitoring.filters().then(r => setFilterOpts(r.data)).catch(() => {})
+    })
+    loadAll()
+  }, [loadAll, refreshKey])
 
   const elapsedKeys = elapsed.length
     ? Object.keys(elapsed[0]).filter(k => k!=='range' && k!=='total') : []
@@ -181,6 +191,22 @@ export default function SLABreachAnalysis() {
           onDateChange={(range) => setDateRange(range)}
           disabled={loading}
         />
+
+        {/* ── TOWER & SDM FILTERS ──────────────────────────────────── */}
+        <div className="flex gap-4 flex-wrap items-start">
+          <TowerFilter
+            towers={filterOpts.towers || []}
+            value={towers}
+            onChange={setTowers}
+            disabled={loading}
+          />
+          <SDMFilter
+            sdms={filterOpts.sdms || []}
+            value={sdms}
+            onChange={setSDMs}
+            disabled={loading}
+          />
+        </div>
 
         {/* ── CONTRACT KPI REFERENCE STRIP ─────────────────────────── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

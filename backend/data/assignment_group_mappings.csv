@@ -1,0 +1,112 @@
+assignment_group,tower,sdm
+A&I-ITSYS-ADO-L2,A&I,Neena Rawat
+A&I-ITSYS-ADO-L3,A&I,Neena Rawat
+A&I-ITSYS-BDS-L2,A&I,Neena Rawat
+A&I-ITSYS-BDS-L3,A&I,Neena Rawat
+A&I-ITSYS-BI-Dashboard-L2,A&I,Neena Rawat
+A&I-ITSYS-BI-Dashboard-L3,A&I,Neena Rawat
+A&I-ITSYS-DPM-L2,A&I,Neena Rawat
+A&I-ITSYS-DPM-L3,A&I,Neena Rawat
+A&I-ITSYS-DPM-PRO-L2,A&I,Neena Rawat
+A&I-ITSYS-DPM-PRO-L3,A&I,Neena Rawat
+A&I-ITSYS-EAI-BAM-L2,A&I,Neena Rawat
+A&I-ITSYS-EAI-BAM-L3,A&I,Neena Rawat
+A&I-ITSYS-EAI-Infra-L3,A&I,Neena Rawat
+A&I-ITSYS-EAI-MarketPlace-L2,A&I,Neena Rawat
+A&I-ITSYS-EAI-MarketPlace-L3,A&I,Neena Rawat
+A&I-ITSYS-GG-L2,A&I,Neena Rawat
+A&I-ITSYS-GG-L3,A&I,Neena Rawat
+A&I-ITSYS-GITHUB-L2,A&I,Neena Rawat
+A&I-ITSYS-GITHUB-L3,A&I,Neena Rawat
+A&I-ITSYS-i3PM-L2,A&I,Neena Rawat
+A&I-ITSYS-i3PM-L3,A&I,Neena Rawat
+A&I-ITSYS-i3M-L2,A&I,Neena Rawat
+A&I-ITSYS-Insomnia-L2,A&I,Neena Rawat
+A&I-ITSYS-Insomnia-L3,A&I,Neena Rawat
+A&I-ITSYS-ITRecharge-L2,A&I,Neena Rawat
+A&I-ITSYS-ITRecharge-L3,A&I,Neena Rawat
+A&I-ITSYS-MEND-L2,A&I,Neena Rawat
+A&I-ITSYS-MEND-L3,A&I,Neena Rawat
+A&I-ITSYS-SAT-L2,A&I,Neena Rawat
+A&I-ITSYS-SAT-L3,A&I,Neena Rawat
+A&I-ITSYS-SONARQUBE-L2,A&I,Neena Rawat
+A&I-ITSYS-SONARQUBE-L3,A&I,Neena Rawat
+A&I-ITSYS-WIKI-L2,A&I,Neena Rawat
+A&I-ITSYS-WIKI-L3,A&I,Neena Rawat
+CG-A2R-APM Core-NG-DFHSE-L2,DES,Narendra Patil
+CG-A2R-APM Core-NG-DF-L2,DES,Narendra Patil
+CG-A2R-APM Core-NG-DW-L2,DES,Narendra Patil
+CG-A2R-APM Core-NG-EQFM-L2,DES,Narendra Patil
+CG-A2R-APM Core-NG-L3,DES,Narendra Patil
+CG-A2R-APM Core-NG-TH-L2,DES,Narendra Patil
+CG-A2R-APM Core-NG-TLMN-L2,DES,Narendra Patil
+CG-A2R-FMP Support-L2,DES,Ray Bhaskar
+CG-A2R-Mateo-L2,DES,Ray Bhaskar
+CG-A2R-MT Ecosystem-L2,DES,Narendra Patil
+CG-BI Platform-L2,DES,Kanchan Chaudhari
+CG-BI Support - L2,DES,Kanchan Chaudhari
+CG-BIDevOps-A2R,D&A,Kanchan Chaudhari
+CG-BIDevOps-D2D,D&A,Kanchan Chaudhari
+CG-BIDevOps-DataReliability,D&A,Kanchan Chaudhari
+CG-BIDevOps-GlobalDashboard,D&A,Kanchan Chaudhari
+CG-BIDevOps-M2C,D&A,Kanchan Chaudhari
+CG-BIDevOps-Monitoring,D&A,Kanchan Chaudhari
+CG-BIDevOps-R2I,D&A,Kanchan Chaudhari
+CG-BIDevOps-R2R,D&A,Kanchan Chaudhari
+CG-BIDevOps-Tech,D&A,Kanchan Chaudhari
+CG-COP-BI-NonCIM-L2,D&A,Kanchan Chaudhari
+CG-D&A-Ingestion-L2,D&A,Kanchan Chaudhari
+CG-D&A-IngestionRecovery-L2,D&A,Kanchan Chaudhari
+CG-D&A-OSSIV-Reporting-L2,D&A,Kanchan Chaudhari
+CG-DPS-Automation-L2,DES,Swet Bhushan
+CG-FI-L2,SAP,Preeti More
+CG-FI-DI Support-L2,SAP,Kanchan Chaudhari
+CG-Master-Data-Customer-L2,D&A,Kanchan Chaudhari
+CG-MASTER-DATA-FinPNP-L2,D&A,Kanchan Chaudhari
+CG-Master-Data-Legacy-L2,D&A,Kanchan Chaudhari
+CG-MASTER-DATA-MATERIAL-L2,D&A,Kanchan Chaudhari
+CG-Master-Data-SCM-L2,D&A,Kanchan Chaudhari
+CG-Master-Data-XREF-L2,D&A,Kanchan Chaudhari
+CG-PowerBI Support,D&A,Kanchan Chaudhari
+CG-R2I-Legal-L2,DES,Akhilesh Singh
+CG-R2H-Competency-L2,DES,Akhilesh Singh
+A2R-FMP Support-L2,DES,Ray Bhaskar
+CG-A2R-Maximo-RP-L2,D&A,Tuhina Srivastav
+CG-A2R-Maximo-WEC-L2,DES,Tuhina Srivastav
+CG-A2R-Maximo-PRS-L2,D&A,Tuhina Srivastav
+DPS-WEB-L2,DES,Swet Bhushan
+G&P-i3PM-ResourceMgmt-L2,A&I,Neena Rawat
+Global-Traceability-L2,DES,Swet Bhushan
+R2I-Competency-L2,DES,Akhilesh Singh
+A2R-FMP Support-L2,DES,Ray Bhaskar
+CG-A2R-Maximo-RP-L2,D&A,Tuhina Srivastav
+A2R-Maximo-RP-L2,D&A,Tuhina Srivastav
+D&A-COP-BI-NonCIM-L2,D&A,Kanchan Chaudhari
+D&A-Ingestion-L2,D&A,Kanchan Chaudhari
+D&A-IngestionRecovery-L2,D&A,Kanchan Chaudhari
+D&A-OSSIV-Reporting-L2,D&A,Kanchan Chaudhari
+D&A-DataPlatform-Ingestion,D&A,Kanchan Chaudhari
+D&A-SCM-L2,D&A,Kanchan Chaudhari
+BIDevOps-M2C,D&A,Kanchan Chaudhari
+MASTER-DATA-MATERIAL-L2,D&A,Kanchan Chaudhari
+CG-BI Support-L2,DES,Kanchan Chaudhari
+A2R-APM Core-NG-L3,DES,Narendra Patil
+A2R-APM Core-NG-L2,DES,Narendra Patil
+A2R-Maximo-WEC-L2,DES,Tuhina Srivastav
+CG-A2R-Maximo-WEC-L2,DES,Tuhina Srivastav
+CG-A2R-Maximo-PRS-L2,D&A,Tuhina Srivastav
+CG-DPS-Automation-L2,DES,Swet Bhushan
+CG-COP-BI-NonCIM-L2,D&A,Kanchan Chaudhari
+BIDevOps-HSDFE,D&A,Kanchan Chaudhari
+A&I-ITSYS-EAI-L2,A&I,Neena Rawat
+R2I-Competency-SLB-L2,DES,Akhilesh Singh
+A2R-Maximo-RP-L2,D&A,Tuhina Srivastav
+CG-DPS-Automation-L2,DES,Swet Bhushan
+CG-Master-Data-SCM-L2,D&A,Kanchan Chaudhari
+D&A-COP-BI-NonCIM-L2,D&A,Kanchan Chaudhari
+D&A-HSDFE-L2,D&A,Kanchan Chaudhari
+BIDevOps-M2C,D&A,Kanchan Chaudhari
+MASTER-DATA-MATERIAL-L2,D&A,Kanchan Chaudhari
+CG-BI Support-L2,DES,Kanchan Chaudhari
+A2R-APM Core-NG-L3,DES,Narendra Patil
+A2R-APM Core-NG-L2,DES,Narendra Patil

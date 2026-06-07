@@ -8,6 +8,7 @@ import { TrendingUp } from 'lucide-react'
 import { trends as trendApi, insights as insApi, monitoring as monApi, buildParams } from '../../services/api'
 import Header from '../layout/Header'
 import DateFilter from '../common/DateFilter'
+import { TowerFilter, SDMFilter } from '../common/TowerSDMFilter.jsx'
 import { InsightCard, FilterBar, DrilldownModal, SkeletonCard, CustomTooltip, EmptyState } from '../common/index.jsx'
 import clsx from 'clsx'
 
@@ -205,7 +206,7 @@ function ChartCard({ title, subtitle, children, height = 300, insight, error }) 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function TrendAnalysis() {
   const [filters, setFilters] = useState({
-    dateFrom:'', dateTo:'', groups:[], priorities:[], categories:[], states:[], sla:'', granularity:'month'
+    dateFrom:'', dateTo:'', towers:[], sdms:[], groups:[], priorities:[], categories:[], states:[], sla:'', granularity:'month'
   })
   const [opts, setOpts]         = useState({})
   const [volume, setVolume]     = useState([])
@@ -288,6 +289,22 @@ export default function TrendAnalysis() {
           onDateChange={(range) => setFilters(f => ({ ...f, dateFrom: range.from, dateTo: range.to }))}
           disabled={loading}
         />
+
+        {/* Tower & SDM Filters */}
+        <div className="flex gap-4 flex-wrap items-start">
+          <TowerFilter
+            towers={opts.towers || []}
+            value={filters.towers}
+            onChange={(v) => setFilters(f => ({ ...f, towers: v }))}
+            disabled={loading}
+          />
+          <SDMFilter
+            sdms={opts.sdms || []}
+            value={filters.sdms}
+            onChange={(v) => setFilters(f => ({ ...f, sdms: v }))}
+            disabled={loading}
+          />
+        </div>
 
         {/* Additional Filters */}
         <FilterBar filters={filters} onChange={setFilters} options={opts} showGranularity />

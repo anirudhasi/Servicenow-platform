@@ -12,6 +12,7 @@ import { format } from 'date-fns'
 import { monitoring as monApi, insights as insApi, buildParams } from '../../services/api'
 import Header from '../layout/Header'
 import DateFilter from '../common/DateFilter'
+import { TowerFilter, SDMFilter } from '../common/TowerSDMFilter.jsx'
 import {
   KPICard, InsightCard, FilterBar,
   SkeletonCard, CustomTooltip, EmptyState
@@ -127,7 +128,7 @@ function ActivityFeed() {
 
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function MonitoringDashboard() {
-  const [filters, setFilters] = useState({ dateFrom:'',dateTo:'',groups:[],priorities:[],categories:[],states:[],sla:'' })
+  const [filters, setFilters] = useState({ dateFrom:'',dateTo:'',towers:[],sdms:[],groups:[],priorities:[],categories:[],states:[],sla:'' })
   const [opts, setOpts]       = useState({})
   const [kpis, setKpis]       = useState(null)
   const [byGroup, setByGroup] = useState([])
@@ -186,6 +187,22 @@ export default function MonitoringDashboard() {
           onDateChange={(range) => setFilters(f => ({ ...f, dateFrom: range.from, dateTo: range.to }))}
           disabled={loading}
         />
+
+        {/* Tower & SDM Filters */}
+        <div className="flex gap-4 flex-wrap items-start">
+          <TowerFilter
+            towers={opts.towers || []}
+            value={filters.towers}
+            onChange={(v) => setFilters(f => ({ ...f, towers: v }))}
+            disabled={loading}
+          />
+          <SDMFilter
+            sdms={opts.sdms || []}
+            value={filters.sdms}
+            onChange={(v) => setFilters(f => ({ ...f, sdms: v }))}
+            disabled={loading}
+          />
+        </div>
 
         {/* Additional Filters */}
         <FilterBar filters={filters} onChange={setFilters} options={opts} />

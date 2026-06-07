@@ -272,6 +272,10 @@ def apply_filters(df, params):
         df = df[df["created"] >= pd.Timestamp(params["date_from"])]
     if params.get("date_to"):
         df = df[df["created"] <= pd.Timestamp(params["date_to"]) + pd.Timedelta(days=1)]
+    if params.get("towers"):
+        df = df[df["tower"].isin(params["towers"])]
+    if params.get("sdms"):
+        df = df[df["sdm"].isin(params["sdms"])]
     if params.get("groups"):
         df = df[df["assignment_group"].isin(params["groups"])]
     if params.get("priorities"):
@@ -287,6 +291,8 @@ def apply_filters(df, params):
 
 def get_filter_options(df):
     return {
+        "towers":     sorted(df["tower"].dropna().unique().tolist()),
+        "sdms":       sorted(df["sdm"].dropna().unique().tolist()),
         "groups":     sorted(df["assignment_group"].dropna().unique().tolist()),
         "categories": sorted(df["category"].dropna().unique().tolist()),
         "states":     sorted(df["state"].dropna().unique().tolist()),

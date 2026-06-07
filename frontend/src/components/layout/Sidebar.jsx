@@ -1,21 +1,23 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, TrendingUp, ChevronLeft, ChevronRight,
-  Zap, Activity, MessageSquare, ClipboardList, Upload, ShieldAlert, Database,
+  LayoutDashboard, TrendingUp, ChevronLeft, ChevronRight, Layers,
+  Zap, Activity, MessageSquare, ClipboardList, Upload, ShieldAlert, Database, GitCompare,
 } from 'lucide-react'
 import { useState } from 'react'
 import clsx from 'clsx'
 
 const NAV = [
-  { to: '/monitoring', icon: LayoutDashboard, label: 'M1 Monitoring',         sub: 'Live KPIs & Queues' },
-  { to: '/trends',     icon: TrendingUp,      label: 'M2 Trend Analysis',     sub: '6-Month Insights' },
-  { to: '/triage',     icon: Zap,             label: 'M3 Smart Triage',       sub: 'AI Auto-Classification' },
-  { to: '/routing',    icon: Activity,        label: 'M4 Intelligent Routing', sub: 'Auto-Assignment ML' },
-  { to: '/chatbot',    icon: MessageSquare,   label: 'M5 NL Chatbot',          sub: 'Conversational AI' },
-  { to: '/scorecard',  icon: ClipboardList,   label: 'M6 SDM Scorecard',       sub: 'SLA & Agent KPIs' },
-  { to: '/breach',     icon: ShieldAlert,     label: 'SLA Risk Board',          sub: 'Breach Intelligence' },
-  { to: '/upload',     icon: Upload,          label: 'M7 Data Upload',          sub: 'CSV / Excel Ingestion' },
-  { to: '/data',       icon: Database,        label: 'Data Management',         sub: 'Import & Merge Data' },
+  { to: '/summary',      icon: Layers,           label: 'Executive Summary',       sub: 'Tower & SDM Overview' },
+  { to: '/comparison',   icon: GitCompare,       label: 'Tower vs SDM',            sub: 'Performance Comparison' },
+  { to: '/monitoring',   icon: LayoutDashboard, label: 'M1 Monitoring',          sub: 'Live KPIs & Queues' },
+  { to: '/trends',       icon: TrendingUp,      label: 'M2 Trend Analysis',      sub: '6-Month Insights' },
+  { to: '/triage',     icon: Zap,             label: 'M3 Smart Triage',        sub: 'AI Auto-Classification' },
+  { to: '/routing',    icon: Activity,        label: 'M4 Intelligent Routing',  sub: 'Auto-Assignment ML' },
+  { to: '/chatbot',    icon: MessageSquare,   label: 'M5 NL Chatbot',           sub: 'Conversational AI' },
+  { to: '/scorecard',  icon: ClipboardList,   label: 'M6 SDM Scorecard',        sub: 'SLA & Agent KPIs' },
+  { to: '/breach',     icon: ShieldAlert,     label: 'SLA Risk Board',           sub: 'Breach Intelligence' },
+  { to: '/upload',     icon: Upload,          label: 'M7 Data Upload',           sub: 'CSV / Excel Ingestion' },
+  { to: '/data',       icon: Database,        label: 'Data Management',          sub: 'Import & Merge Data' },
 ]
 
 export default function Sidebar() {
