@@ -242,10 +242,11 @@ function MTTRTrendByGroup({ data, loading }) {
   // Calculate avg MTTR by group
   const groupStats = {}
   data.forEach(incident => {
-    if (incident.mttr_hours === null || incident.mttr_hours === undefined) return
+    const mttr = incident.mttr_hours
+    if (mttr === null || mttr === undefined || mttr < 0) return
     const group = incident.assignment_group || 'Unknown'
     if (!groupStats[group]) groupStats[group] = { count: 0, total: 0 }
-    groupStats[group].total += incident.mttr_hours
+    groupStats[group].total += mttr
     groupStats[group].count += 1
   })
 
@@ -334,20 +335,19 @@ export default function EnhancedTrendAnalysis() {
 
   // Load filter options once
   useEffect(() => {
-    trendApi.filters?.() || monApi.filters()
+    monApi.filters()
       .then(r => setOpts(r.data))
       .catch(console.error)
   }, [])
 
-  // Load all incidents (for client-side filtering in charts)
+  // Load all incidents for client-side filtering
   const loadAll = useCallback(() => {
     setLoading(true)
-    const params = buildParams({ dateFrom: '', dateTo: '', towers: [], sdms: [], groups: [], priorities: [], categories: [], states: [], sla: '' })
-    monApi.incidents({ ...params, page: 1, limit: 5000 })
+    monApi.incidents({ page: 1, limit: 5000 })
       .then(r => {
-        const incidents = Array.isArray(r.data) ? r.data : (r.data.incidents || [])
+        // axios response: r.data = { data: [...incidents], total: N, ... }
+        const incidents = r.data?.data || []
         setAllIncidents(incidents)
-        console.log(`Loaded ${incidents.length} incidents`)
       })
       .catch(err => {
         console.error('Failed to load incidents:', err)
