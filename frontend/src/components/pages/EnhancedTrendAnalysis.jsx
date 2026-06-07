@@ -66,10 +66,21 @@ function PriorityHeatMap({ data, filters }) {
     groupMap[group][`P${incident.priority}`] = (groupMap[group][`P${incident.priority}`] || 0) + 1
   })
 
-  const heatData = Object.entries(groupMap)
+  const allData = Object.entries(groupMap)
     .map(([group, counts]) => ({ group, ...counts }))
     .sort((a, b) => (b.P1 || 0) + (b.P2 || 0) - (a.P1 || 0) - (a.P2 || 0))
-    .slice(0, 15) // Show top 15 groups for readability
+
+  // Apply smart grouping: top 10 + Others
+  let heatData = allData
+  if (allData.length > 10) {
+    const top = allData.slice(0, 10)
+    const others = allData.slice(10)
+    const otherP1 = others.reduce((sum, g) => sum + (g.P1 || 0), 0)
+    const otherP2 = others.reduce((sum, g) => sum + (g.P2 || 0), 0)
+    const otherP3 = others.reduce((sum, g) => sum + (g.P3 || 0), 0)
+    const otherP4 = others.reduce((sum, g) => sum + (g.P4 || 0), 0)
+    heatData = [...top, { group: 'Others', P1: otherP1, P2: otherP2, P3: otherP3, P4: otherP4, count: others.length }]
+  }
 
   return (
     <div className="card">

@@ -11,6 +11,19 @@ from app.data_loader import get_dataframe, apply_filters, get_filter_options
 router = APIRouter(prefix="/monitoring", tags=["M1 Monitoring"])
 
 
+def _clean_nan(obj):
+    """Recursively replace NaN and inf values with None for JSON serialization"""
+    if isinstance(obj, dict):
+        return {k: _clean_nan(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_clean_nan(item) for item in obj]
+    elif isinstance(obj, float):
+        if np.isnan(obj) or np.isinf(obj):
+            return None
+        return obj
+    return obj
+
+
 def _parse_filters(
     date_from: Optional[str],
     date_to: Optional[str],
@@ -213,13 +226,14 @@ def get_incidents(
     result["created"]  = result["created"].astype(str)
     result["resolved"] = result["resolved"].astype(str)
 
-    return {
-        "data":        result.to_dict(orient="records"),
+    data_dict = result.to_dict(orient="records")
+    return _clean_nan({
+        "data":        data_dict,
         "total":       total,
         "page":        page,
         "limit":       limit,
         "total_pages": max(1, (total + limit - 1) // limit),
-    }
+    })
 
 
 @router.get("/top-services")
