@@ -224,18 +224,23 @@ def get_incidents(
     available = [c for c in display_cols if c in df_page.columns]
     result = df_page[available].copy()
 
-    # Convert dates to strings and handle NaT values
-    result["created"]  = result["created"].fillna("").astype(str)
-    result["resolved"] = result["resolved"].fillna("").astype(str)
+    # Convert to dict BEFORE any value conversion to avoid NaN serialization
+    records = []
+    for _, row in result.iterrows():
+        rec = {}
+        for col in available:
+            val = row[col]
+            # Convert NaT, NaN, and inf to None (JSON null)
+            if pd.isna(val) or (isinstance(val, float) and np.isinf(val)):
+                rec[col] = None
+            elif isinstance(val, (pd.Timestamp, pd.Timedelta)):
+                rec[col] = str(val)
+            else:
+                rec[col] = val
+        records.append(rec)
 
-    # Fill NaN values in numeric columns with None/null
-    for col in result.columns:
-        if result[col].dtype in ['float64', 'float32', 'int64', 'int32']:
-            result[col] = result[col].where(pd.notna(result[col]), None)
-
-    data_dict = result.to_dict(orient="records")
     return {
-        "data":        data_dict,
+        "data":        records,
         "total":       total,
         "page":        page,
         "limit":       limit,
