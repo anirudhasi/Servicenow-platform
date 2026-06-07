@@ -9,9 +9,9 @@ import clsx from 'clsx'
 const NAV = [
   { to: '/summary',      icon: Layers,           label: 'Executive Summary',       sub: 'Tower & SDM Overview' },
   { to: '/comparison',   icon: GitCompare,       label: 'Tower vs SDM',            sub: 'Performance Comparison' },
-  { to: '/monitoring',   icon: LayoutDashboard, label: 'M1 Monitoring',          sub: 'Live KPIs & Queues' },
-  { to: '/trends',       icon: TrendingUp,      label: 'M2 Trend Analysis',      sub: '6-Month Insights' },
-  { to: '/triage',     icon: Zap,             label: 'M3 Smart Triage',        sub: 'AI Auto-Classification' },
+  { to: '/monitoring',        icon: LayoutDashboard, label: 'M1 Monitoring',          sub: 'Live KPIs & Queues' },
+  { to: '/trends-enhanced',   icon: TrendingUp,      label: 'M2 Enhanced Trends',    sub: 'Dynamic Grouping + Heatmap' },
+  { to: '/triage',            icon: Zap,             label: 'M3 Smart Triage',       sub: 'AI Auto-Classification' },
   { to: '/routing',    icon: Activity,        label: 'M4 Intelligent Routing',  sub: 'Auto-Assignment ML' },
   { to: '/chatbot',    icon: MessageSquare,   label: 'M5 NL Chatbot',           sub: 'Conversational AI' },
   { to: '/scorecard',  icon: ClipboardList,   label: 'M6 SDM Scorecard',        sub: 'SLA & Agent KPIs' },

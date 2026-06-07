@@ -3,6 +3,7 @@ import Sidebar from './components/layout/Sidebar.jsx'
 import ExecutiveSummary     from './components/pages/ExecutiveSummary.jsx'
 import MonitoringDashboard  from './components/pages/MonitoringDashboard.jsx'
 import TrendAnalysis        from './components/pages/TrendAnalysis.jsx'
+import EnhancedTrendAnalysis from './components/pages/EnhancedTrendAnalysis.jsx'
 import SmartTriage          from './components/pages/SmartTriage.jsx'
 import IntelligentRouting   from './components/pages/IntelligentRouting.jsx'
 import NLChatbot            from './components/pages/NLChatbot.jsx'
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/comparison"  element={<TowerSDMComparison />} />
           <Route path="/monitoring"  element={<MonitoringDashboard />} />
           <Route path="/trends"      element={<TrendAnalysis />} />
+          <Route path="/trends-enhanced" element={<EnhancedTrendAnalysis />} />
           <Route path="/triage"      element={<SmartTriage />} />
           <Route path="/smart-triage" element={<SmartTriage />} />
           <Route path="/routing"     element={<IntelligentRouting />} />
