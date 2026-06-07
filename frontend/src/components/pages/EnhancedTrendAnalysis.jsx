@@ -1,445 +1,609 @@
-/**
- * Enhanced Trend Analysis — M2 with Dynamic Group Limiting
- *
- * Features:
- * - Priority Distribution Heat Map (P1-P4 × groups/towers)
- * - Incident Volume by Group (top 10 + Others)
- * - Volume Over Time (stacked or line)
- * - MTTR Trend by Group (top 10 + Others)
- * - All filter-responsive
- */
 import { useState, useEffect, useCallback } from 'react'
 import {
-  BarChart, Bar, LineChart, Line,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
-  ComposedChart,
+  AreaChart, Area, BarChart, Bar, LineChart, Line, ScatterChart, Scatter,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
+  ZAxis, Cell, ComposedChart,
 } from 'recharts'
-import { TrendingUp, AlertTriangle } from 'lucide-react'
-import { trends as trendApi, monitoring as monApi, buildParams } from '../../services/api'
+import { TrendingUp } from 'lucide-react'
+import { trends as trendApi, insights as insApi, monitoring as monApi, buildParams } from '../../services/api'
 import Header from '../layout/Header'
 import DateFilter from '../common/DateFilter'
 import { TowerFilter, SDMFilter } from '../common/TowerSDMFilter.jsx'
-import { SkeletonCard, CustomTooltip, EmptyState } from '../common/index.jsx'
-import clsx from 'clsx'
+import { InsightCard, FilterBar, SkeletonCard, CustomTooltip, EmptyState } from '../common/index.jsx'
 
-const COLORS = ['#2563EB', '#0EA5E9', '#10B981', '#F59E0B', '#8B5CF6', '#EF4444', '#EC4899', '#14B8A6', '#F97316', '#EAB308']
-const PRIORITY_COLORS = { 1: '#EF4444', 2: '#F97316', 3: '#EAB308', 4: '#22C55E' }
-const PRIORITY_LABELS = { 1: 'P1-Critical', 2: 'P2-High', 3: 'P3-Moderate', 4: 'P4-Standard' }
+// ── Colour maps ───────────────────────────────────────────────────────────────
+const PALETTE = ['#2563EB','#0EA5E9','#10B981','#F59E0B','#8B5CF6','#EF4444','#EC4899','#14B8A6','#F97316','#EAB308']
+const groupColor = (name, idx) => PALETTE[idx % PALETTE.length]
+const CAT_COLORS = {
+  'Application Access':'#2563EB','Application Error':'#0EA5E9','Hardware':'#10B981',
+  'Network':'#EF4444','Software & Tools':'#F59E0B','Software':'#F59E0B','Email':'#8B5CF6',
+  'User Account':'#EC4899','Infrastructure':'#14B8A6','Data & Reporting':'#F97316',
+  'Change Request':'#EAB308','Service Request':'#6366F1','Security':'#EF4444','General':'#94A3B8',
+}
+const catColor = (name, idx) => CAT_COLORS[name] || PALETTE[idx % PALETTE.length]
+const PRIORITY_COLORS = { P1:'#EF4444', P2:'#F97316', P3:'#EAB308', P4:'#22C55E' }
+const DOW_ORDER = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
+const COLORS = ['#2563EB','#0EA5E9','#10B981','#F59E0B','#8B5CF6','#EF4444','#EC4899','#14B8A6','#F97316','#EAB308']
 
-/**
- * Helper: Group data intelligently
- * If >10 groups, take top 10 by value + group rest as "Others"
- */
+// ── Smart grouping: top N + Others ────────────────────────────────────────────
 function smartGroupData(data, key, limit = 10) {
   if (!data || data.length === 0) return data
-
   const sorted = [...data].sort((a, b) => (b[key] || 0) - (a[key] || 0))
-
   if (sorted.length <= limit) return sorted
-
   const top = sorted.slice(0, limit)
   const others = sorted.slice(limit)
   const othersSum = others.reduce((sum, item) => sum + (item[key] || 0), 0)
-
-  return [
-    ...top,
-    {
-      name: 'Others',
-      [key]: othersSum,
-      isOthers: true,
-      count: others.length,
-    },
-  ]
+  return [...top, { name: 'Others', [key]: othersSum, isOthers: true, count: others.length }]
 }
 
-/**
- * Priority Distribution Heat Map
- */
-function PriorityHeatMap({ data, filters }) {
-  if (!data || data.length === 0) return <EmptyState />
-
-  // Create matrix: groups × priorities
-  const groupMap = {}
-  data.forEach(incident => {
-    const group = incident.assignment_group || 'Unknown'
-    if (!groupMap[group]) groupMap[group] = { P1: 0, P2: 0, P3: 0, P4: 0 }
-    groupMap[group][`P${incident.priority}`] = (groupMap[group][`P${incident.priority}`] || 0) + 1
-  })
-
-  const allData = Object.entries(groupMap)
-    .map(([group, counts]) => ({ group, ...counts }))
-    .sort((a, b) => (b.P1 || 0) + (b.P2 || 0) - (a.P1 || 0) - (a.P2 || 0))
-
-  // Apply smart grouping: top 10 + Others
-  let heatData = allData
-  if (allData.length > 10) {
-    const top = allData.slice(0, 10)
-    const others = allData.slice(10)
-    const otherP1 = others.reduce((sum, g) => sum + (g.P1 || 0), 0)
-    const otherP2 = others.reduce((sum, g) => sum + (g.P2 || 0), 0)
-    const otherP3 = others.reduce((sum, g) => sum + (g.P3 || 0), 0)
-    const otherP4 = others.reduce((sum, g) => sum + (g.P4 || 0), 0)
-    heatData = [...top, { group: 'Others', P1: otherP1, P2: otherP2, P3: otherP3, P4: otherP4, count: others.length }]
-  }
-
+// ── Resolution heatmap ────────────────────────────────────────────────────────
+function ResolutionHeatmap({ data }) {
+  const maxVal = Math.max(...data.map(d => d.count), 1)
+  const hours  = Array.from({ length: 24 }, (_, i) => i)
+  const byDow  = {}
+  DOW_ORDER.forEach(d => { byDow[d] = {} })
+  data.forEach(d => { if (byDow[d.dow]) byDow[d.dow][d.hour] = d.count })
   return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">Priority Distribution Heatmap</span>
-        <span className="text-xs text-slate-400">Top 15 assignment groups by P1+P2 volume</span>
-      </div>
-      <div className="p-4 overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead className="bg-slate-50 dark:bg-slate-900/30">
-            <tr>
-              <th className="px-3 py-2 text-left font-bold">Assignment Group</th>
-              <th className="px-3 py-2 text-center font-bold" style={{ color: '#EF4444' }}>P1</th>
-              <th className="px-3 py-2 text-center font-bold" style={{ color: '#F97316' }}>P2</th>
-              <th className="px-3 py-2 text-center font-bold" style={{ color: '#EAB308' }}>P3</th>
-              <th className="px-3 py-2 text-center font-bold" style={{ color: '#22C55E' }}>P4</th>
-              <th className="px-3 py-2 text-center font-bold">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {heatData.map((row, idx) => (
-              <tr key={idx} className="border-t border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900/30">
-                <td className="px-3 py-2 font-semibold text-slate-700 dark:text-slate-300 truncate">{row.group}</td>
-                <td className="px-3 py-2 text-center">
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-bold">
-                    {row.P1 || 0}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-center">
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-bold">
-                    {row.P2 || 0}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-center">
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 font-bold">
-                    {row.P3 || 0}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-center">
-                  <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-bold">
-                    {row.P4 || 0}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-center font-bold text-slate-700 dark:text-slate-300">
-                  {(row.P1 || 0) + (row.P2 || 0) + (row.P3 || 0) + (row.P4 || 0)}
-                </td>
-              </tr>
+    <div className="overflow-x-auto">
+      <div className="min-w-[600px]">
+        <div className="flex ml-20 mb-1">
+          {hours.map(h => (
+            <div key={h} className="flex-1 text-center text-[9px] text-slate-400">{h % 4 === 0 ? `${h}h` : ''}</div>
+          ))}
+        </div>
+        {DOW_ORDER.map(day => (
+          <div key={day} className="flex items-center mb-0.5">
+            <div className="w-20 text-[10px] text-slate-500 dark:text-slate-400 text-right pr-2 shrink-0">{day.slice(0,3)}</div>
+            {hours.map(h => {
+              const v = byDow[day]?.[h] || 0
+              const opacity = 0.05 + (v / maxVal) * 0.9
+              return (
+                <div key={h} className="flex-1 mx-px rounded-sm" style={{ height: 18, background: `rgba(37,99,235,${opacity})` }}
+                  title={`${day} ${h}:00 — ${v} incidents`} />
+              )
+            })}
+          </div>
+        ))}
+        <div className="flex items-center gap-2 mt-3 text-[10px] text-slate-400 ml-20">
+          <span>Low</span>
+          <div className="flex gap-0.5">
+            {[0.05,0.2,0.4,0.6,0.8,0.95].map((o,i) => (
+              <div key={i} className="w-4 h-3 rounded-sm" style={{ background: `rgba(37,99,235,${o})` }} />
             ))}
-          </tbody>
-        </table>
+          </div>
+          <span>High</span>
+        </div>
       </div>
     </div>
   )
 }
 
-/**
- * Incident Volume by Assignment Group (Top 10 + Others)
- */
+// ── Root Cause bars ───────────────────────────────────────────────────────────
+function RootCauseBars({ data }) {
+  const [selected, setSelected] = useState(null)
+  const shown = selected ? data.find(d => d.name === selected) : null
+  return (
+    <div className="space-y-3">
+      {!selected ? (
+        data.map((cat, i) => (
+          <div key={cat.name} className="cursor-pointer hover:opacity-90 transition-opacity" onClick={() => setSelected(cat.name)}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{cat.name}</span>
+              <span className="text-xs text-slate-500">{cat.total} tickets</span>
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-5 overflow-hidden">
+              <div className="h-full rounded-full flex items-center pl-2"
+                style={{ width: `${(cat.total / (data[0]?.total || 1)) * 100}%`, background: catColor(cat.name, i) }}>
+                <span className="text-[10px] text-white font-semibold">{cat.total}</span>
+              </div>
+            </div>
+          </div>
+        ))
+      ) : (
+        <div>
+          <button onClick={() => setSelected(null)} className="text-xs text-brand-600 hover:underline mb-3">← Back to all categories</button>
+          <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-3">{shown?.name} — Sub-categories</p>
+          {shown?.children?.map((sub, i) => (
+            <div key={sub.name} className="mb-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-slate-600 dark:text-slate-300">{sub.name}</span>
+                <span className="text-xs text-slate-500">{sub.count}</span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-4 overflow-hidden">
+                <div className="h-full rounded-full" style={{ width: `${(sub.count / (shown.children[0]?.count || 1)) * 100}%`, background: catColor(sub.name, i) }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Forecast chart ────────────────────────────────────────────────────────────
+function ForecastChart({ data }) {
+  if (!data) return <SkeletonCard h="h-full" />
+  const combined = [
+    ...data.historical.map(d => ({ ...d, actual: d.count })),
+    ...data.forecast.map(d => ({ ...d })),
+  ]
+  return (
+    <ResponsiveContainer width="100%" height="100%">
+      <AreaChart data={combined} margin={{ left: -20, right: 10 }}>
+        <defs>
+          <linearGradient id="grad_actual" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#2563EB" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#2563EB" stopOpacity={0.05} />
+          </linearGradient>
+          <linearGradient id="grad_forecast" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
+            <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.05} />
+          </linearGradient>
+        </defs>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+        <YAxis tick={{ fontSize: 10 }} />
+        <Tooltip content={<CustomTooltip />} />
+        <Legend wrapperStyle={{ fontSize: 11 }} />
+        <ReferenceLine x={data.historical?.[data.historical.length - 1]?.period}
+          stroke="#94A3B8" strokeDasharray="4 4"
+          label={{ value: 'Today', fontSize: 10, fill: '#64748B', position: 'top' }} />
+        <Area type="monotone" dataKey="actual" name="Actual" fill="url(#grad_actual)" stroke="#2563EB" strokeWidth={2} dot={{ r: 3 }} />
+        <Area type="monotone" dataKey="forecast" name="Forecast" fill="url(#grad_forecast)" stroke="#F59E0B" strokeWidth={2} strokeDasharray="6 3" dot={{ r: 3, fill: '#F59E0B' }} />
+        <Area type="monotone" dataKey="ci_upper" name="Upper CI" stroke="none" fill="none" />
+        <Area type="monotone" dataKey="ci_lower" name="Lower CI" stroke="none" fill="rgba(245,158,11,0.08)" />
+      </AreaChart>
+    </ResponsiveContainer>
+  )
+}
+
+// ── Chart card wrapper ────────────────────────────────────────────────────────
+function ChartCard({ title, subtitle, children, height = 300, insight, error }) {
+  const containerStyle = typeof height === 'number' ? { height: `${height}px` } : {}
+  return (
+    <div className="card">
+      <div className="card-header">
+        <div>
+          <span className="card-title">{title}</span>
+          {subtitle && <p className="text-[10px] text-slate-400 mt-0.5">{subtitle}</p>}
+        </div>
+        {error && <span className="text-[10px] text-red-500 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 rounded-full">error</span>}
+      </div>
+      <div className="p-4" style={containerStyle}>
+        {error
+          ? <div className="h-full flex items-center justify-center text-xs text-red-500">{error}</div>
+          : children}
+      </div>
+      {insight && !error && (
+        <div className="px-4 pb-4"><InsightCard insight={insight} /></div>
+      )}
+    </div>
+  )
+}
+
+// ── Volume by Group (smart grouped) ──────────────────────────────────────────
 function VolumeByGroup({ data, loading }) {
-  if (loading) return <SkeletonCard h="h-80" />
+  if (loading) return <SkeletonCard h="h-72" />
   if (!data || data.length === 0) return <EmptyState />
-
-  // Count by group
   const groupCounts = {}
-  data.forEach(incident => {
-    const group = incident.assignment_group || 'Unknown'
-    groupCounts[group] = (groupCounts[group] || 0) + 1
+  data.forEach(inc => {
+    const g = inc.assignment_group || 'Unknown'
+    groupCounts[g] = (groupCounts[g] || 0) + 1
   })
-
   const chartData = smartGroupData(
     Object.entries(groupCounts).map(([name, count]) => ({ name, count })),
-    'count',
-    10
+    'count', 10
   )
-
   return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">Incident Volume by Assignment Group</span>
-        <span className="text-xs text-slate-400">
-          {chartData.length <= 10 ? `All ${chartData.length} groups` : `Top 10 + Others (${chartData[chartData.length - 1].count} total)`}
-        </span>
-      </div>
-      <div className="p-4" style={{ height: 300 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ left: -20, right: 20, bottom: 40 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 9 }}
-              angle={-45}
-              textAnchor="end"
-              height={80}
-            />
-            <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="count" fill="#2563EB" radius={[3, 3, 0, 0]}>
-              {chartData.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={entry.isOthers ? '#94A3B8' : COLORS[index % COLORS.length]}
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={chartData} margin={{ left: -20, right: 20, bottom: 40 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-45} textAnchor="end" height={80} />
+        <YAxis tick={{ fontSize: 10 }} />
+        <Tooltip content={<CustomTooltip />} />
+        <Bar dataKey="count" name="Incidents" radius={[3,3,0,0]}>
+          {chartData.map((entry, i) => (
+            <Cell key={i} fill={entry.isOthers ? '#94A3B8' : COLORS[i % COLORS.length]} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   )
 }
 
-/**
- * Incident Volume Over Time
- */
-function VolumeOverTime({ data, loading }) {
-  if (loading) return <SkeletonCard h="h-80" />
+// ── MTTR by Group (smart grouped) ────────────────────────────────────────────
+function MTTRByGroup({ data, loading }) {
+  if (loading) return <SkeletonCard h="h-72" />
   if (!data || data.length === 0) return <EmptyState />
-
-  // Group by date
-  const dateMap = {}
-  data.forEach(incident => {
-    const date = new Date(incident.created).toISOString().split('T')[0]
-    dateMap[date] = (dateMap[date] || 0) + 1
-  })
-
-  const chartData = Object.entries(dateMap)
-    .map(([date, count]) => ({ date, count }))
-    .sort((a, b) => new Date(a.date) - new Date(b.date))
-
-  return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">Incident Volume Over Time</span>
-        <span className="text-xs text-slate-400">{chartData.length} days of data</span>
-      </div>
-      <div className="p-4" style={{ height: 300 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData} margin={{ left: -20, right: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="date" tick={{ fontSize: 9 }} />
-            <YAxis tick={{ fontSize: 10 }} />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="count" fill="#10B981" radius={[3, 3, 0, 0]} name="Daily Volume" />
-            <Line type="monotone" dataKey="count" stroke="#2563EB" strokeWidth={2} dot={false} name="Trend" />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  )
-}
-
-/**
- * MTTR Trend by Assignment Group (Top 10)
- */
-function MTTRTrendByGroup({ data, loading }) {
-  if (loading) return <SkeletonCard h="h-80" />
-  if (!data || data.length === 0) return <EmptyState />
-
-  // Calculate avg MTTR by group
   const groupStats = {}
-  data.forEach(incident => {
-    const mttr = incident.mttr_hours
+  data.forEach(inc => {
+    const mttr = inc.mttr_hours
     if (mttr === null || mttr === undefined || mttr < 0) return
-    const group = incident.assignment_group || 'Unknown'
-    if (!groupStats[group]) groupStats[group] = { count: 0, total: 0 }
-    groupStats[group].total += mttr
-    groupStats[group].count += 1
+    const g = inc.assignment_group || 'Unknown'
+    if (!groupStats[g]) groupStats[g] = { total: 0, count: 0 }
+    groupStats[g].total += mttr
+    groupStats[g].count += 1
   })
-
   const chartData = smartGroupData(
     Object.entries(groupStats)
-      .map(([name, stats]) => ({
-        name,
-        mttr: parseFloat((stats.total / stats.count).toFixed(1)),
-        count: stats.count,
-      }))
-      .filter(d => d.count >= 2), // Only groups with 2+ incidents
-    'mttr',
-    10
+      .filter(([, s]) => s.count >= 2)
+      .map(([name, s]) => ({ name, mttr: parseFloat((s.total / s.count).toFixed(1)), count: s.count })),
+    'mttr', 10
   )
-
-  // SLA targets
-  const P1_TARGET = 4
-  const P2_TARGET = 8
-
   return (
-    <div className="card">
-      <div className="card-header">
-        <span className="card-title">Average MTTR by Assignment Group</span>
-        <span className="text-xs text-slate-400">
-          {chartData.length <= 10 ? `All ${chartData.length} groups` : `Top 10 + Others`}
-        </span>
-      </div>
-      <div className="p-4" style={{ height: 350 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ left: -20, right: 20, bottom: 40 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis
-              dataKey="name"
-              tick={{ fontSize: 9 }}
-              angle={-45}
-              textAnchor="end"
-              height={80}
-            />
-            <YAxis label={{ value: 'MTTR (hours)', angle: -90, position: 'insideLeft' }} tick={{ fontSize: 10 }} />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (active && payload?.[0]) {
-                  return (
-                    <div className="bg-white dark:bg-slate-800 p-2 rounded border border-slate-300 dark:border-slate-600 text-xs">
-                      <p className="font-bold">{payload[0].payload.name}</p>
-                      <p className="text-blue-600">MTTR: {payload[0].value}h</p>
-                      <p className="text-slate-500">Incidents: {payload[0].payload.count}</p>
-                    </div>
-                  )
-                }
-                return null
-              }}
-            />
-            <Bar dataKey="mttr" fill="#8B5CF6" radius={[3, 3, 0, 0]} name="Avg MTTR">
-              {chartData.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={
-                    entry.mttr > P2_TARGET
-                      ? '#EF4444' // Red: >8h
-                      : entry.mttr > P1_TARGET
-                      ? '#F97316' // Orange: >4h
-                      : '#22C55E' // Green: <=4h
-                  }
-                />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={chartData} margin={{ left: 0, right: 20, bottom: 40 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+        <XAxis dataKey="name" tick={{ fontSize: 9 }} angle={-45} textAnchor="end" height={80} />
+        <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}h`} />
+        <ReferenceLine y={4}  stroke="#22C55E" strokeDasharray="4 4" label={{ value:'P1 4h', fontSize:9, fill:'#22C55E', position:'right' }} />
+        <ReferenceLine y={8}  stroke="#F97316" strokeDasharray="4 4" label={{ value:'P2 8h', fontSize:9, fill:'#F97316', position:'right' }} />
+        <Tooltip content={({ active, payload }) => {
+          if (!active || !payload?.[0]) return null
+          const d = payload[0].payload
+          return (
+            <div className="bg-white dark:bg-slate-800 p-2 rounded border border-slate-200 dark:border-slate-700 text-xs">
+              <p className="font-bold">{d.name}</p>
+              <p>MTTR: {d.mttr}h</p>
+              <p className="text-slate-500">Incidents: {d.count}</p>
+            </div>
+          )
+        }} />
+        <Bar dataKey="mttr" name="Avg MTTR (h)" radius={[3,3,0,0]}>
+          {chartData.map((entry, i) => (
+            <Cell key={i} fill={entry.mttr > 8 ? '#EF4444' : entry.mttr > 4 ? '#F97316' : '#22C55E'} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   )
 }
 
-/**
- * Main Enhanced Trend Analysis Component
- */
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function EnhancedTrendAnalysis() {
   const [filters, setFilters] = useState({
-    dateFrom: '', dateTo: '', towers: [], sdms: [], groups: [], priorities: [], categories: [], states: [], sla: '', granularity: 'month'
+    dateFrom:'', dateTo:'', towers:[], sdms:[], groups:[], priorities:[], categories:[], states:[], sla:'', granularity:'month'
   })
-  const [opts, setOpts] = useState({})
-  const [allIncidents, setAllIncidents] = useState([]) // Raw data for client-side filtering
-  const [loading, setLoading] = useState(true)
+  const [opts, setOpts]           = useState({})
+  const [volume, setVolume]       = useState([])
+  const [mttr, setMttr]           = useState([])
+  const [catDist, setCatDist]     = useState([])
+  const [slaTrend, setSlaTrend]   = useState([])
+  const [prioTrend, setPrioTrend] = useState([])
+  const [heatmap, setHeatmap]     = useState([])
+  const [reass, setReass]         = useState({ by_group:[], scatter_data:[] })
+  const [forecast, setForecast]   = useState(null)
+  const [rootCause, setRootCause] = useState([])
+  const [trendInsights, setTrendInsights] = useState([])
+  const [chartErrors, setChartErrors]     = useState({})
+  const [allIncidents, setAllIncidents]   = useState([])
+  const [loading, setLoading]     = useState(true)
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Load filter options once
   useEffect(() => {
-    monApi.filters()
-      .then(r => setOpts(r.data))
-      .catch(console.error)
+    monApi.filters().then(r => setOpts(r.data)).catch(console.error)
   }, [])
 
-  // Load all incidents for client-side filtering
   const loadAll = useCallback(() => {
     setLoading(true)
-    monApi.incidents({ page: 1, limit: 5000 })
-      .then(r => {
-        // axios response: r.data = { data: [...incidents], total: N, ... }
-        const incidents = r.data?.data || []
-        setAllIncidents(incidents)
+    setChartErrors({})
+    const p = buildParams(filters)
+
+    // Load trend charts from API
+    Promise.allSettled([
+      trendApi.volume(p),
+      trendApi.mttr(p),
+      trendApi.categoryDist(p),
+      trendApi.slaCompliance(p),
+      trendApi.priorityTrend(p),
+      trendApi.resolutionHeatmap(p),
+      trendApi.reassignment(p),
+      trendApi.forecast({ ...p, periods: 6 }),
+      trendApi.rootCause(p),
+      insApi.trends(p),
+      monApi.incidents({ ...p, page: 1, limit: 5000 }),
+    ]).then(results => {
+      const errs = {}
+      const names = ['volume','mttr','catDist','slaTrend','prioTrend','heatmap','reass','forecast','rootCause','insights','incidents']
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          const d = r.value.data
+          if (i === 0) setVolume(d)
+          else if (i === 1) setMttr(d)
+          else if (i === 2) setCatDist(d)
+          else if (i === 3) setSlaTrend(d)
+          else if (i === 4) setPrioTrend(d)
+          else if (i === 5) setHeatmap(d)
+          else if (i === 6) setReass(d || { by_group:[], scatter_data:[] })
+          else if (i === 7) setForecast(d)
+          else if (i === 8) setRootCause(d)
+          else if (i === 9) setTrendInsights(d)
+          else if (i === 10) setAllIncidents(d?.data || [])
+        } else {
+          errs[names[i]] = r.reason?.response?.data?.detail || r.reason?.message || 'Failed to load'
+        }
       })
-      .catch(err => {
-        console.error('Failed to load incidents:', err)
-        setAllIncidents([])
-      })
-      .finally(() => setLoading(false))
-  }, [])
+      setChartErrors(errs)
+    }).finally(() => setLoading(false))
+  }, [filters])
 
   useEffect(() => { loadAll() }, [loadAll, refreshKey])
 
-  // Filter incidents client-side based on selected filters
-  const filteredIncidents = allIncidents.filter(incident => {
-    if (filters.dateFrom && new Date(incident.created) < new Date(filters.dateFrom)) return false
-    if (filters.dateTo && new Date(incident.created) > new Date(filters.dateTo)) return false
-    if (filters.towers.length && !filters.towers.includes(incident.tower)) return false
-    if (filters.sdms.length && !filters.sdms.includes(incident.sdm)) return false
-    if (filters.groups.length && !filters.groups.includes(incident.assignment_group)) return false
-    if (filters.priorities.length && !filters.priorities.includes(incident.priority)) return false
-    if (filters.categories.length && !filters.categories.includes(incident.category)) return false
-    if (filters.states.length && !filters.states.includes(incident.state)) return false
-    return true
-  })
+  const insightByChart = trendInsights.reduce((acc, ins) => { acc[ins.chart] = ins; return acc }, {})
+  const groupKeys = volume.length ? Object.keys(volume[0]).filter(k => k !== 'period' && k !== 'total') : []
+  const catKeys   = catDist.length ? Object.keys(catDist[0]).filter(k => k !== 'period') : []
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <Header
-        title="M2 — Enhanced Trend Analysis"
-        subtitle="Dynamic grouping · Priority heatmap · Real-time filtering"
-        onRefresh={() => setRefreshKey(k => k + 1)}
+        title="M2 — Trend Analysis"
+        subtitle="Volume trends · MTTR · SLA compliance · Forecasting · Dynamic grouping"
+        onRefresh={() => setRefreshKey(k => k+1)}
         loading={loading}
       />
 
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        {/* Date & Tower/SDM Filters */}
-        <DateFilter
-          onDateChange={(range) => setFilters(f => ({ ...f, dateFrom: range.from, dateTo: range.to }))}
-          disabled={loading}
-        />
 
-        <div className="flex gap-4 flex-wrap items-start">
-          <TowerFilter
-            towers={opts.towers || []}
-            value={filters.towers}
-            onChange={(v) => setFilters(f => ({ ...f, towers: v }))}
-            disabled={loading}
-          />
-          <SDMFilter
-            sdms={opts.sdms || []}
-            value={filters.sdms}
-            onChange={(v) => setFilters(f => ({ ...f, sdms: v }))}
-            disabled={loading}
-          />
+        {/* Unified Filter Panel */}
+        <div className="card p-4 bg-slate-50 dark:bg-slate-900/30 border-l-4 border-brand-500">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Date Range</p>
+              <DateFilter
+                onDateChange={(range) => setFilters(f => ({ ...f, dateFrom: range.from, dateTo: range.to }))}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Organisation</p>
+              <div className="flex gap-2 flex-wrap">
+                <div className="flex-1 min-w-40">
+                  <TowerFilter towers={opts.towers || []} value={filters.towers}
+                    onChange={(v) => setFilters(f => ({ ...f, towers: v }))} disabled={loading} />
+                </div>
+                <div className="flex-1 min-w-40">
+                  <SDMFilter sdms={opts.sdms || []} value={filters.sdms}
+                    onChange={(v) => setFilters(f => ({ ...f, sdms: v }))} disabled={loading} />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+            <FilterBar filters={filters} onChange={setFilters} options={opts} showGranularity />
+          </div>
         </div>
 
-        {/* Status Info */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm text-blue-900 dark:text-blue-100">
-          Showing <span className="font-bold">{filteredIncidents.length}</span> incidents (filtered from {allIncidents.length} total)
-        </div>
-
-        {/* Charts Grid */}
+        {/* Row 1: Volume + SLA */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Priority Heatmap - Full Width */}
-          <div className="lg:col-span-2">
-            <PriorityHeatMap data={filteredIncidents} filters={filters} />
-          </div>
+          <ChartCard title="Incident Volume Over Time" subtitle="Stacked by assignment group" height={280}
+            insight={insightByChart['volume']} error={chartErrors.volume}>
+            {loading ? <SkeletonCard h="h-full" /> : volume.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={volume} margin={{ left: -20, right: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  {groupKeys.map((g, i) => (
+                    <Bar key={g} dataKey={g} name={g} stackId="stack" fill={groupColor(g, i)}
+                      radius={i === groupKeys.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />}
+          </ChartCard>
 
-          {/* Volume by Group */}
-          <div>
-            <VolumeByGroup data={filteredIncidents} loading={loading} />
-          </div>
+          <ChartCard title="SLA Compliance Trend" subtitle="% met · breach count" height={280}
+            insight={insightByChart['sla_compliance']} error={chartErrors.slaTrend}>
+            {loading ? <SkeletonCard h="h-full" /> : slaTrend.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={slaTrend} margin={{ left: -20, right: 5 }}>
+                  <defs>
+                    <linearGradient id="gSlaMet" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22C55E" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#22C55E" stopOpacity={0.02} />
+                    </linearGradient>
+                    <linearGradient id="gSlaBreach" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <ReferenceLine yAxisId="right" y={90} stroke="#22C55E" strokeDasharray="4 4"
+                    label={{ value:'90% target', fontSize:9, fill:'#22C55E' }} />
+                  <Area yAxisId="left" type="monotone" dataKey="met" name="SLA Met" fill="url(#gSlaMet)" stroke="#22C55E" strokeWidth={2} />
+                  <Area yAxisId="left" type="monotone" dataKey="breached" name="Breached" fill="url(#gSlaBreach)" stroke="#EF4444" strokeWidth={2} />
+                  <Line yAxisId="right" type="monotone" dataKey="compliance_pct" name="Compliance %" stroke="#0EA5E9" strokeWidth={2} dot={{ r: 3 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />}
+          </ChartCard>
+        </div>
 
-          {/* Volume Over Time */}
-          <div>
-            <VolumeOverTime data={filteredIncidents} loading={loading} />
-          </div>
+        {/* Row 2: MTTR + Priority Trend */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <ChartCard title="MTTR Trends by Group" subtitle="Mean time to resolve (hours)" height={280}
+            insight={insightByChart['mttr']} error={chartErrors.mttr}>
+            {loading ? <SkeletonCard h="h-full" /> : mttr.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={mttr} margin={{ left: -20, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}h`} />
+                  <Tooltip content={<CustomTooltip formatter={(v) => `${Number(v).toFixed(1)}h`} />} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                  {Object.keys(mttr[0] || {}).filter(g => g !== 'period' && g !== 'overall_avg').map((g, i) => (
+                    <Line key={g} type="monotone" dataKey={g} name={g}
+                      stroke={groupColor(g, i)} strokeWidth={2} dot={{ r: 3 }} connectNulls />
+                  ))}
+                  {mttr[0]?.overall_avg !== undefined && (
+                    <Line type="monotone" dataKey="overall_avg" name="Overall Avg"
+                      stroke="#94A3B8" strokeWidth={2} strokeDasharray="6 3" dot={false} />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />}
+          </ChartCard>
 
-          {/* MTTR Trend */}
-          <div className="lg:col-span-2">
-            <MTTRTrendByGroup data={filteredIncidents} loading={loading} />
+          <ChartCard title="Priority Trend" subtitle="Incident count by priority over time" height={280}
+            error={chartErrors.prioTrend}>
+            {loading ? <SkeletonCard h="h-full" /> : prioTrend.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={prioTrend} margin={{ left: -20, right: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {['P1','P2','P3','P4'].map(p => (
+                    <Bar key={p} dataKey={p} name={p} stackId="a" fill={PRIORITY_COLORS[p]}
+                      radius={p === 'P4' ? [3,3,0,0] : [0,0,0,0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />}
+          </ChartCard>
+        </div>
+
+        {/* Row 3: Category Distribution */}
+        <ChartCard title="Issue Category Distribution Over Time" subtitle="Stacked volume per category" height={300}
+          insight={insightByChart['category_distribution']} error={chartErrors.catDist}>
+          {loading ? <SkeletonCard h="h-full" /> : catDist.length ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={catDist} margin={{ left: -20, right: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                {catKeys.map((c, i) => (
+                  <Bar key={c} dataKey={c} name={c} stackId="a" fill={catColor(c, i)}
+                    radius={i === catKeys.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          ) : <EmptyState />}
+        </ChartCard>
+
+        {/* Row 4: Incident Volume by Group + MTTR by Group (smart grouped, top 10 + Others) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <ChartCard
+            title="Incident Volume by Assignment Group"
+            subtitle={allIncidents.length > 0 ? `${Object.keys(allIncidents.reduce((a,i) => ({...a,[i.assignment_group]:1}), {})).length} groups → top 10 + Others` : ''}
+            height={320}>
+            <VolumeByGroup data={allIncidents} loading={loading} />
+          </ChartCard>
+
+          <ChartCard
+            title="Avg MTTR by Assignment Group"
+            subtitle="Top 10 groups · color: green ≤4h · orange 4–8h · red >8h"
+            height={320}>
+            <MTTRByGroup data={allIncidents} loading={loading} />
+          </ChartCard>
+        </div>
+
+        {/* Row 5: Forecast + Root Cause */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <ChartCard title="Volume Forecast" subtitle="6-period ahead forecast" height={300}
+            insight={insightByChart['forecast']} error={chartErrors.forecast}>
+            {loading ? <SkeletonCard h="h-full" /> : forecast ? <ForecastChart data={forecast} /> : <EmptyState />}
+          </ChartCard>
+
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Root Cause Analysis</span>
+              <span className="text-xs text-slate-400">Click category to drill into sub-causes</span>
+            </div>
+            <div className="p-4 overflow-y-auto" style={{ maxHeight: 360 }}>
+              {rootCause.length ? <RootCauseBars data={rootCause} /> : <EmptyState />}
+            </div>
           </div>
         </div>
 
-        {/* Legend & Help */}
-        <div className="card p-4 bg-slate-50 dark:bg-slate-900/30 border-l-4 border-blue-500">
-          <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Dynamic Grouping Logic:</p>
-          <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
-            <li>• <span className="font-semibold">≤ 10 groups:</span> Show all groups individually</li>
-            <li>• <span className="font-semibold">&gt; 10 groups:</span> Show top 10 + "Others" (sum of remaining)</li>
-            <li>• <span className="font-semibold">Heatmap:</span> Always shows top 15 groups by P1+P2 volume</li>
-            <li>• <span className="font-semibold">Real-time:</span> All charts update instantly with filter changes</li>
-          </ul>
+        {/* Row 6: Creation Heatmap */}
+        <ChartCard title="Incident Creation Heat Map"
+          subtitle="Day-of-week × hour-of-day — identify peak load windows" height="auto"
+          error={chartErrors.heatmap}>
+          <div style={{ minHeight: 200 }}>
+            {heatmap.length ? <ResolutionHeatmap data={heatmap} /> : <EmptyState />}
+          </div>
+        </ChartCard>
+
+        {/* Row 7: Reassignment */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <ChartCard title="Reassignment Rate by Group" subtitle="Average reassignments per incident" height={280}
+            error={chartErrors.reass}>
+            {loading ? <SkeletonCard h="h-full" /> : reass.by_group?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={reass.by_group} layout="vertical" margin={{ left: 100, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis type="number" tick={{ fontSize: 10 }} />
+                  <YAxis dataKey="group" type="category" tick={{ fontSize: 10 }} width={100} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="avg_reassignments" name="Avg Reassignments" radius={[0,3,3,0]}>
+                    {reass.by_group?.map((r, i) => (
+                      <Cell key={i} fill={r.avg_reassignments > 1 ? '#EF4444' : r.avg_reassignments > 0.5 ? '#F59E0B' : '#22C55E'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />}
+          </ChartCard>
+
+          <ChartCard title="MTTR vs Reassignment Correlation"
+            subtitle="Each point = 1 incident · colour = priority" height={280} error={chartErrors.reass}>
+            {loading ? <SkeletonCard h="h-full" /> : reass.scatter_data?.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <ScatterChart margin={{ left: -10, right: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="reassignment_count" name="Reassignments" type="number" tick={{ fontSize: 10 }}
+                    label={{ value: 'Reassignments', fontSize: 10, position: 'insideBottom', offset: -5 }} />
+                  <YAxis dataKey="mttr_hours" name="MTTR (h)" type="number" tick={{ fontSize: 10 }} tickFormatter={v => `${v}h`} />
+                  <ZAxis range={[20, 120]} />
+                  <Tooltip cursor={{ strokeDasharray: '3 3' }}
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null
+                      const d = payload[0]?.payload
+                      return (
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl p-3 text-xs">
+                          <p className="font-semibold mb-1">{d?.number}</p>
+                          <p>MTTR: {Number(d?.mttr_hours).toFixed(1)}h</p>
+                          <p>Reassigned: {d?.reassignment_count}x</p>
+                          <p>Priority: P{d?.priority}</p>
+                        </div>
+                      )
+                    }}
+                  />
+                  {[1,2,3,4].map(p => (
+                    <Scatter key={p} name={`P${p}`}
+                      data={reass.scatter_data?.filter(d => d.priority === p)}
+                      fill={{ 1:'#EF4444',2:'#F97316',3:'#EAB308',4:'#22C55E' }[p]} fillOpacity={0.7} />
+                  ))}
+                </ScatterChart>
+              </ResponsiveContainer>
+            ) : <EmptyState />}
+          </ChartCard>
         </div>
+
+        {/* Row 8: Insights */}
+        {trendInsights.length > 0 && (
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Trend Insights Summary</span>
+              <span className="text-xs text-slate-400">Auto-generated from data patterns</span>
+            </div>
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              {trendInsights.map(ins => <InsightCard key={ins.id} insight={ins} />)}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   )
