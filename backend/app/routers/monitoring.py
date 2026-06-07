@@ -216,7 +216,7 @@ def get_incidents(
     df_page = df.iloc[(page - 1) * limit : page * limit]
 
     display_cols = [
-        "number","created","impact_user","assignment_group","category","subcategory",
+        "number","created","impact_user","assignment_group","tower","sdm","category","subcategory",
         "priority","priority_label","urgency","state","short_description","made_sla",
         "made_sla_bool","resolved","reopen_count","reassignment_count","mttr_hours",
         "assigned_to","resolution_code","resolution_notes",
