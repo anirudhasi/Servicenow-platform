@@ -331,11 +331,17 @@ export default function EnhancedTrendAnalysis() {
   // Load all incidents (for client-side filtering in charts)
   const loadAll = useCallback(() => {
     setLoading(true)
-    monApi.incidents({ page: 1, limit: 5000 })
+    const params = buildParams({ dateFrom: '', dateTo: '', towers: [], sdms: [], groups: [], priorities: [], categories: [], states: [], sla: '' })
+    monApi.incidents({ ...params, page: 1, limit: 5000 })
       .then(r => {
-        setAllIncidents(r.data.incidents || [])
+        const incidents = Array.isArray(r.data) ? r.data : (r.data.incidents || [])
+        setAllIncidents(incidents)
+        console.log(`Loaded ${incidents.length} incidents`)
       })
-      .catch(console.error)
+      .catch(err => {
+        console.error('Failed to load incidents:', err)
+        setAllIncidents([])
+      })
       .finally(() => setLoading(false))
   }, [])
 

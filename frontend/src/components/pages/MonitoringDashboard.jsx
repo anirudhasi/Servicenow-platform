@@ -126,6 +126,17 @@ function ActivityFeed() {
   )
 }
 
+// ── Helper: Smart Group Data ──────────────────────────────────────────────
+function smartGroupData(data, key, limit = 10) {
+  if (!data || data.length === 0) return data
+  const sorted = [...data].sort((a, b) => (b[key] || 0) - (a[key] || 0))
+  if (sorted.length <= limit) return sorted
+  const top = sorted.slice(0, limit)
+  const others = sorted.slice(limit)
+  const othersSum = others.reduce((sum, item) => sum + (item[key] || 0), 0)
+  return [...top, { group: 'Others', [key]: othersSum, isOthers: true, count: others.length }]
+}
+
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 export default function MonitoringDashboard() {
   const [filters, setFilters] = useState({ dateFrom:'',dateTo:'',towers:[],sdms:[],groups:[],priorities:[],categories:[],states:[],sla:'' })
@@ -182,30 +193,50 @@ export default function MonitoringDashboard() {
       />
 
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
-        {/* Date Range Filter */}
-        <DateFilter
-          onDateChange={(range) => setFilters(f => ({ ...f, dateFrom: range.from, dateTo: range.to }))}
-          disabled={loading}
-        />
+        {/* Unified Filter Section */}
+        <div className="card p-4 bg-slate-50 dark:bg-slate-900/30 border-l-4 border-brand-500">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Date Range */}
+            <div>
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Date Range</p>
+              <DateFilter
+                onDateChange={(range) => setFilters(f => ({ ...f, dateFrom: range.from, dateTo: range.to }))}
+                disabled={loading}
+              />
+            </div>
 
-        {/* Tower & SDM Filters */}
-        <div className="flex gap-4 flex-wrap items-start">
-          <TowerFilter
-            towers={opts.towers || []}
-            value={filters.towers}
-            onChange={(v) => setFilters(f => ({ ...f, towers: v }))}
-            disabled={loading}
-          />
-          <SDMFilter
-            sdms={opts.sdms || []}
-            value={filters.sdms}
-            onChange={(v) => setFilters(f => ({ ...f, sdms: v }))}
-            disabled={loading}
-          />
+            {/* Tower & SDM Filters */}
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Organization</p>
+              <div className="flex gap-2 flex-wrap">
+                <div className="flex-1 min-w-48">
+                  <TowerFilter
+                    towers={opts.towers || []}
+                    value={filters.towers}
+                    onChange={(v) => setFilters(f => ({ ...f, towers: v }))}
+                    disabled={loading}
+                  />
+                </div>
+                <div className="flex-1 min-w-48">
+                  <SDMFilter
+                    sdms={opts.sdms || []}
+                    value={filters.sdms}
+                    onChange={(v) => setFilters(f => ({ ...f, sdms: v }))}
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Filters - Priority, Category, State */}
+          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">Additional Filters</p>
+            <div className="flex flex-wrap gap-3">
+              <FilterBar filters={filters} onChange={setFilters} options={opts} />
+            </div>
+          </div>
         </div>
-
-        {/* Additional Filters */}
-        <FilterBar filters={filters} onChange={setFilters} options={opts} />
 
         {/* KPI Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
@@ -227,18 +258,23 @@ export default function MonitoringDashboard() {
             </div>
             <div className="p-4" style={{ height: 280 }}>
               {loading ? <SkeletonCard h="h-full" /> : byGroup.length ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={byGroup} margin={{ left: -20, right: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="group" tick={{ fontSize: 10 }} tickFormatter={v => v.replace('DPS-','').slice(0,14)} />
-                    <YAxis tick={{ fontSize: 10 }} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    {Object.entries(STATE_COLORS).map(([s, c]) => (
-                      <Bar key={s} dataKey={s} stackId="a" fill={c} name={s} radius={s === 'Closed' ? [3,3,0,0] : [0,0,0,0]} />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
+                <>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                    {byGroup.length <= 10 ? `Showing all ${byGroup.length} groups` : `Top 10 groups + Others (${byGroup[byGroup.length-1].count} groups)`}
+                  </div>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={smartGroupData(byGroup, 'total', 10)} margin={{ left: -20, right: 10, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="group" tick={{ fontSize: 9 }} angle={-45} textAnchor="end" height={60} />
+                      <YAxis tick={{ fontSize: 10 }} />
+                      <Tooltip content={<CustomTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      {Object.entries(STATE_COLORS).map(([s, c]) => (
+                        <Bar key={s} dataKey={s} stackId="a" fill={c} name={s} radius={s === 'Closed' ? [3,3,0,0] : [0,0,0,0]} />
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                </>
               ) : <EmptyState />}
             </div>
           </div>
