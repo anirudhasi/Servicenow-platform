@@ -25,7 +25,7 @@ const PRIORITY_COLORS = { P1:'#EF4444', P2:'#F97316', P3:'#EAB308', P4:'#22C55E'
 const DOW_ORDER = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday']
 const COLORS = ['#2563EB','#0EA5E9','#10B981','#F59E0B','#8B5CF6','#EF4444','#EC4899','#14B8A6','#F97316','#EAB308']
 
-// ── Smart grouping: top N + Others ────────────────────────────────────────────
+// ── Smart grouping: top N + Others (for flat lists) ───────────────────────────
 function smartGroupData(data, key, limit = 10) {
   if (!data || data.length === 0) return data
   const sorted = [...data].sort((a, b) => (b[key] || 0) - (a[key] || 0))
@@ -34,6 +34,31 @@ function smartGroupData(data, key, limit = 10) {
   const others = sorted.slice(limit)
   const othersSum = others.reduce((sum, item) => sum + (item[key] || 0), 0)
   return [...top, { name: 'Others', [key]: othersSum, isOthers: true, count: others.length }]
+}
+
+// ── Smart grouping for time-series data (groups as columns) ───────────────────
+// Input:  [{period:'2025-11', 'GroupA': 10, 'GroupB': 5, ...}, ...]
+// Output: same shape but with only top-N groups + 'Others' column
+function smartGroupSeries(data, limit = 10) {
+  if (!data || data.length === 0) return { data: [], keys: [] }
+  const groupKeys = Object.keys(data[0]).filter(k => k !== 'period' && k !== 'total' && k !== 'overall_avg')
+  if (groupKeys.length <= limit) return { data, keys: groupKeys }
+
+  // Rank groups by total across all periods
+  const totals = {}
+  groupKeys.forEach(g => { totals[g] = data.reduce((s, row) => s + (row[g] || 0), 0) })
+  const sorted = [...groupKeys].sort((a, b) => totals[b] - totals[a])
+  const top = sorted.slice(0, limit)
+  const rest = sorted.slice(limit)
+
+  // Rebuild rows with top groups + Others
+  const newData = data.map(row => {
+    const out = { period: row.period }
+    top.forEach(g => { out[g] = row[g] || 0 })
+    out['Others'] = rest.reduce((s, g) => s + (row[g] || 0), 0)
+    return out
+  })
+  return { data: newData, keys: [...top, 'Others'] }
 }
 
 // ── Resolution heatmap ────────────────────────────────────────────────────────
@@ -330,7 +355,6 @@ export default function EnhancedTrendAnalysis() {
   useEffect(() => { loadAll() }, [loadAll, refreshKey])
 
   const insightByChart = trendInsights.reduce((acc, ins) => { acc[ins.chart] = ins; return acc }, {})
-  const groupKeys = volume.length ? Object.keys(volume[0]).filter(k => k !== 'period' && k !== 'total') : []
   const catKeys   = catDist.length ? Object.keys(catDist[0]).filter(k => k !== 'period') : []
 
   return (
@@ -375,23 +399,28 @@ export default function EnhancedTrendAnalysis() {
 
         {/* Row 1: Volume + SLA */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <ChartCard title="Incident Volume Over Time" subtitle="Stacked by assignment group" height={280}
-            insight={insightByChart['volume']} error={chartErrors.volume}>
-            {loading ? <SkeletonCard h="h-full" /> : volume.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={volume} margin={{ left: -20, right: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  {groupKeys.map((g, i) => (
-                    <Bar key={g} dataKey={g} name={g} stackId="stack" fill={groupColor(g, i)}
-                      radius={i === groupKeys.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <EmptyState />}
+          <ChartCard title="Incident Volume Over Time"
+            subtitle={volume.length ? (() => { const k = Object.keys(volume[0]).filter(k => k !== 'period' && k !== 'total'); return k.length > 10 ? `Top 10 groups + Others (${k.length} total)` : `${k.length} groups` })() : 'Stacked by assignment group'}
+            height={280} insight={insightByChart['volume']} error={chartErrors.volume}>
+            {loading ? <SkeletonCard h="h-full" /> : volume.length ? (() => {
+              const { data: vData, keys: vKeys } = smartGroupSeries(volume, 10)
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={vData} margin={{ left: -20, right: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    {vKeys.map((g, i) => (
+                      <Bar key={g} dataKey={g} name={g} stackId="stack"
+                        fill={g === 'Others' ? '#94A3B8' : groupColor(g, i)}
+                        radius={i === vKeys.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              )
+            })() : <EmptyState />}
           </ChartCard>
 
           <ChartCard title="SLA Compliance Trend" subtitle="% met · breach count" height={280}
@@ -428,27 +457,38 @@ export default function EnhancedTrendAnalysis() {
 
         {/* Row 2: MTTR + Priority Trend */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <ChartCard title="MTTR Trends by Group" subtitle="Mean time to resolve (hours)" height={280}
-            insight={insightByChart['mttr']} error={chartErrors.mttr}>
-            {loading ? <SkeletonCard h="h-full" /> : mttr.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={mttr} margin={{ left: -20, right: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}h`} />
-                  <Tooltip content={<CustomTooltip formatter={(v) => `${Number(v).toFixed(1)}h`} />} />
-                  <Legend wrapperStyle={{ fontSize: 10 }} />
-                  {Object.keys(mttr[0] || {}).filter(g => g !== 'period' && g !== 'overall_avg').map((g, i) => (
-                    <Line key={g} type="monotone" dataKey={g} name={g}
-                      stroke={groupColor(g, i)} strokeWidth={2} dot={{ r: 3 }} connectNulls />
-                  ))}
-                  {mttr[0]?.overall_avg !== undefined && (
-                    <Line type="monotone" dataKey="overall_avg" name="Overall Avg"
-                      stroke="#94A3B8" strokeWidth={2} strokeDasharray="6 3" dot={false} />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            ) : <EmptyState />}
+          <ChartCard title="MTTR Trends by Group"
+            subtitle={mttr.length ? (() => { const k = Object.keys(mttr[0]).filter(g => g !== 'period' && g !== 'overall_avg'); return k.length > 10 ? `Top 10 groups + Others (${k.length} total)` : `${k.length} groups` })() : 'Mean time to resolve (hours)'}
+            height={280} insight={insightByChart['mttr']} error={chartErrors.mttr}>
+            {loading ? <SkeletonCard h="h-full" /> : mttr.length ? (() => {
+              const mttrWithoutOverall = mttr.map(row => {
+                const { overall_avg, ...rest } = row
+                return rest
+              })
+              const { data: mData, keys: mKeys } = smartGroupSeries(mttrWithoutOverall, 10)
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={mData} margin={{ left: -20, right: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `${v}h`} />
+                    <Tooltip content={<CustomTooltip formatter={(v) => `${Number(v).toFixed(1)}h`} />} />
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    {mKeys.map((g, i) => (
+                      <Line key={g} type="monotone" dataKey={g} name={g}
+                        stroke={g === 'Others' ? '#94A3B8' : groupColor(g, i)}
+                        strokeWidth={g === 'Others' ? 1.5 : 2}
+                        strokeDasharray={g === 'Others' ? '4 2' : undefined}
+                        dot={{ r: 2 }} connectNulls />
+                    ))}
+                    {mttr[0]?.overall_avg !== undefined && (
+                      <Line type="monotone" dataKey="overall_avg" name="Overall Avg"
+                        stroke="#475569" strokeWidth={2} strokeDasharray="6 3" dot={false} />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
+              )
+            })() : <EmptyState />}
           </ChartCard>
 
           <ChartCard title="Priority Trend" subtitle="Incident count by priority over time" height={280}
@@ -556,38 +596,64 @@ export default function EnhancedTrendAnalysis() {
             ) : <EmptyState />}
           </ChartCard>
 
-          <ChartCard title="MTTR vs Reassignment Correlation"
-            subtitle="Each point = 1 incident · colour = priority" height={280} error={chartErrors.reass}>
-            {loading ? <SkeletonCard h="h-full" /> : reass.scatter_data?.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <ScatterChart margin={{ left: -10, right: 10 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="reassignment_count" name="Reassignments" type="number" tick={{ fontSize: 10 }}
-                    label={{ value: 'Reassignments', fontSize: 10, position: 'insideBottom', offset: -5 }} />
-                  <YAxis dataKey="mttr_hours" name="MTTR (h)" type="number" tick={{ fontSize: 10 }} tickFormatter={v => `${v}h`} />
-                  <ZAxis range={[20, 120]} />
-                  <Tooltip cursor={{ strokeDasharray: '3 3' }}
-                    content={({ active, payload }) => {
+          <ChartCard title="Reassignment Impact on SLA"
+            subtitle="SLA breach rate & avg MTTR by number of reassignments" height={280} error={chartErrors.reass}>
+            {loading ? <SkeletonCard h="h-full" /> : (() => {
+              const bucketDef = [
+                { key: '0', label: '0 (First Try)', min: 0, max: 0 },
+                { key: '1', label: '1 Reassign',   min: 1, max: 1 },
+                { key: '2', label: '2 Reassigns',  min: 2, max: 2 },
+                { key: '3+', label: '3+ Reassigns', min: 3, max: 99 },
+              ]
+              const bucketData = bucketDef.map(({ key, label, min, max }) => {
+                const matches = allIncidents.filter(i => {
+                  const rc = i.reassignment_count ?? 0
+                  return rc >= min && rc <= max
+                })
+                const breached = matches.filter(i => i.made_sla_bool === false || i.made_sla_bool === 'false').length
+                const resolved = matches.filter(i => i.mttr_hours != null && i.mttr_hours > 0)
+                const avgMttr = resolved.length
+                  ? Math.round(resolved.reduce((s, i) => s + Number(i.mttr_hours), 0) / resolved.length)
+                  : 0
+                return {
+                  label,
+                  total: matches.length,
+                  breach_pct: matches.length ? Math.round(100 * breached / matches.length) : 0,
+                  avg_mttr: avgMttr,
+                }
+              }).filter(b => b.total > 0)
+              return bucketData.length ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={bucketData} margin={{ left: -10, right: 20, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 9 }} />
+                    <YAxis yAxisId="left" tick={{ fontSize: 10 }} tickFormatter={v => `${v}h`}
+                      label={{ value: 'Avg MTTR (h)', angle: -90, position: 'insideLeft', fontSize: 9, dy: 40 }} />
+                    <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`}
+                      domain={[0, 100]} />
+                    <Tooltip content={({ active, payload, label }) => {
                       if (!active || !payload?.length) return null
-                      const d = payload[0]?.payload
                       return (
-                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl p-3 text-xs">
-                          <p className="font-semibold mb-1">{d?.number}</p>
-                          <p>MTTR: {Number(d?.mttr_hours).toFixed(1)}h</p>
-                          <p>Reassigned: {d?.reassignment_count}x</p>
-                          <p>Priority: P{d?.priority}</p>
+                        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl p-3 text-xs shadow-lg">
+                          <p className="font-bold mb-1">{label}</p>
+                          {payload.map((p, i) => (
+                            <p key={i} style={{ color: p.color }}>{p.name}: {p.value}{p.name.includes('%') ? '' : 'h'}</p>
+                          ))}
+                          <p className="text-slate-400 mt-1">{payload[0]?.payload?.total?.toLocaleString()} incidents</p>
                         </div>
                       )
-                    }}
-                  />
-                  {[1,2,3,4].map(p => (
-                    <Scatter key={p} name={`P${p}`}
-                      data={reass.scatter_data?.filter(d => d.priority === p)}
-                      fill={{ 1:'#EF4444',2:'#F97316',3:'#EAB308',4:'#22C55E' }[p]} fillOpacity={0.7} />
-                  ))}
-                </ScatterChart>
-              </ResponsiveContainer>
-            ) : <EmptyState />}
+                    }} />
+                    <Legend wrapperStyle={{ fontSize: 10 }} />
+                    <Bar yAxisId="left" dataKey="avg_mttr" name="Avg MTTR (h)" radius={[4,4,0,0]}>
+                      {bucketData.map((b, i) => (
+                        <Cell key={i} fill={b.breach_pct > 70 ? '#EF4444' : b.breach_pct > 50 ? '#F97316' : b.breach_pct > 30 ? '#EAB308' : '#22C55E'} />
+                      ))}
+                    </Bar>
+                    <Line yAxisId="right" type="monotone" dataKey="breach_pct" name="SLA Breach %" stroke="#EF4444" strokeWidth={2.5} dot={{ r: 5, fill: '#EF4444' }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              ) : <EmptyState />
+            })()}
           </ChartCard>
         </div>
 

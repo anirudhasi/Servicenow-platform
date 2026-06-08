@@ -206,7 +206,7 @@ export function FilterBar({ filters, onChange, options = {}, showGranularity = f
 
       {/* Reset */}
       {activeCount > 0 && (
-        <button onClick={() => onChange({ dateFrom: '', dateTo: '', groups: [], priorities: [], categories: [], states: [], sla: '', granularity: 'month' })}
+        <button onClick={() => onChange({ ...filters, dateFrom: '', dateTo: '', groups: [], priorities: [], categories: [], states: [], sla: '', granularity: 'month' })}
           className="flex items-center gap-1 text-xs text-slate-500 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 transition-colors ml-1">
           <X size={12} /> Reset
         </button>

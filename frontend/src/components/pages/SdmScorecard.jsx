@@ -8,6 +8,7 @@ import clsx from 'clsx'
 import Header from '../layout/Header'
 import { scorecard as scorecardApi, monitoring as monApi, buildParams } from '../../services/api'
 import { FilterBar, SkeletonCard, EmptyState, CustomTooltip } from '../common/index.jsx'
+import { TowerFilter, SDMFilter } from '../common/TowerSDMFilter.jsx'
 
 // ── RAG badge ─────────────────────────────────────────────────────────────────
 function RAGBadge({ rag }) {
@@ -40,7 +41,7 @@ function ComplianceBar({ actual, target }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function SdmScorecard() {
-  const [filters, setFilters] = useState({ dateFrom:'', dateTo:'', groups:[] })
+  const [filters, setFilters] = useState({ dateFrom:'', dateTo:'', towers:[], sdms:[], groups:[] })
   const [opts, setOpts]       = useState({})
   const [summary, setSummary] = useState([])
   const [agents, setAgents]   = useState([])
@@ -85,7 +86,19 @@ export default function SdmScorecard() {
 
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
         {/* Filters */}
-        <FilterBar filters={filters} onChange={setFilters} options={{ ...opts, showPriority: false }} />
+        <div className="card p-4 bg-slate-50 dark:bg-slate-900/30 border-l-4 border-brand-500 space-y-3">
+          <div className="flex gap-3 flex-wrap">
+            <div className="flex-1 min-w-40">
+              <TowerFilter towers={opts.towers || []} value={filters.towers}
+                onChange={v => setFilters(f => ({ ...f, towers: v }))} disabled={loading} />
+            </div>
+            <div className="flex-1 min-w-40">
+              <SDMFilter sdms={opts.sdms || []} value={filters.sdms}
+                onChange={v => setFilters(f => ({ ...f, sdms: v }))} disabled={loading} />
+            </div>
+          </div>
+          <FilterBar filters={filters} onChange={setFilters} options={{ ...opts, showPriority: false }} />
+        </div>
 
         {/* KPI strip */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

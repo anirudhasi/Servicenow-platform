@@ -58,10 +58,29 @@ function SLAGauge({ data }) {
 
 // ── Priority Heatmap ──────────────────────────────────────────────────────────
 function PriorityHeatmap({ data = [] }) {
-  const maxVal = Math.max(...data.flatMap(r => [r.p1, r.p2, r.p3, r.p4]), 1)
-  const intensity = v => Math.round((v / maxVal) * 255)
+  // Apply top 10 + Others rule
+  const sorted = [...data].sort((a, b) => (b.total || 0) - (a.total || 0))
+  let rows = sorted
+  if (sorted.length > 10) {
+    const top = sorted.slice(0, 10)
+    const rest = sorted.slice(10)
+    rows = [...top, {
+      group: `Others (${rest.length} groups)`,
+      p1: rest.reduce((s, r) => s + (r.p1 || 0), 0),
+      p2: rest.reduce((s, r) => s + (r.p2 || 0), 0),
+      p3: rest.reduce((s, r) => s + (r.p3 || 0), 0),
+      p4: rest.reduce((s, r) => s + (r.p4 || 0), 0),
+      total: rest.reduce((s, r) => s + (r.total || 0), 0),
+      isOthers: true,
+    }]
+  }
+
+  const maxVal = Math.max(...rows.flatMap(r => [r.p1, r.p2, r.p3, r.p4]), 1)
   return (
     <div className="overflow-x-auto">
+      <div className="text-[10px] text-slate-400 mb-2">
+        {data.length > 10 ? `Top 10 groups + Others (${data.length - 10} groups aggregated)` : `All ${data.length} groups`}
+      </div>
       <table className="w-full text-xs">
         <thead>
           <tr>
@@ -73,15 +92,18 @@ function PriorityHeatmap({ data = [] }) {
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-          {data.map((row, i) => (
-            <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors">
+          {rows.map((row, i) => (
+            <tr key={i} className={`hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors ${row.isOthers ? 'bg-slate-50 dark:bg-slate-800/50' : ''}`}>
               <td className="py-2 pr-3 text-slate-700 dark:text-slate-200 font-medium text-[11px] leading-tight">
-                {row.group.replace('DPS-','').replace(' ','​')}
+                {row.isOthers ? row.group : row.group.replace('DPS-','')}
               </td>
               {[row.p1, row.p2, row.p3, row.p4].map((v, pi) => (
                 <td key={pi} className="py-2 px-3 text-center">
                   <span className="inline-flex items-center justify-center w-9 h-7 rounded text-xs font-bold"
-                    style={{ background: `rgba(${pi === 0 ? '239,68,68' : pi === 1 ? '249,115,22' : pi === 2 ? '234,179,8' : '34,197,94'},${0.15 + (v / maxVal) * 0.65})`, color: `rgb(${pi === 0 ? '185,28,28' : pi === 1 ? '194,65,12' : pi === 2 ? '161,98,7' : '21,128,61'})` }}>
+                    style={{
+                      background: `rgba(${pi === 0 ? '239,68,68' : pi === 1 ? '249,115,22' : pi === 2 ? '234,179,8' : '34,197,94'},${0.15 + (v / maxVal) * 0.65})`,
+                      color: `rgb(${pi === 0 ? '185,28,28' : pi === 1 ? '194,65,12' : pi === 2 ? '161,98,7' : '21,128,61'})`
+                    }}>
                     {v}
                   </span>
                 </td>

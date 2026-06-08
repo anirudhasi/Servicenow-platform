@@ -135,32 +135,37 @@ export default function SLABreachAnalysis() {
 
   const loadAll = useCallback(() => {
     setLoading(true)
+    const p = {}
+    if (towers.length)       p.towers    = towers
+    if (sdms.length)         p.sdms      = sdms
+    if (dateRange.from)      p.date_from = dateRange.from
+    if (dateRange.to)        p.date_to   = dateRange.to
     Promise.allSettled([
-      breachApi.kpis(),
-      breachApi.timeline(),
-      breachApi.slaCompliance(),
-      breachApi.byService(),
-      breachApi.byGroup(),
-      breachApi.elapsedDistribution(),
-      breachApi.assignmentAge(),
-      breachApi.reassignmentImpact(),
-      breachApi.priorityBreakdown(),
-      breachApi.onHoldAnalysis(),
-      breachApi.kpiScorecard(),
-    ]).then(([k,t,c,s,g,e,a,r,p,o,sc]) => {
-      if (k.status==='fulfilled') setKpis(k.value.data)
-      if (t.status==='fulfilled') setTimeline(t.value.data)
-      if (c.status==='fulfilled') setCompliance(c.value.data)
-      if (s.status==='fulfilled') setByService(s.value.data)
-      if (g.status==='fulfilled') setByGroup(g.value.data)
-      if (e.status==='fulfilled') setElapsed(e.value.data)
-      if (a.status==='fulfilled') setAssignAge(a.value.data)
-      if (r.status==='fulfilled') setReassign(r.value.data)
-      if (p.status==='fulfilled') setPriority(p.value.data)
-      if (o.status==='fulfilled') setOnHold(o.value.data)
+      breachApi.kpis(p),
+      breachApi.timeline(p),
+      breachApi.slaCompliance(p),
+      breachApi.byService(p),
+      breachApi.byGroup(p),
+      breachApi.elapsedDistribution(p),
+      breachApi.assignmentAge(p),
+      breachApi.reassignmentImpact(p),
+      breachApi.priorityBreakdown(p),
+      breachApi.onHoldAnalysis(p),
+      breachApi.kpiScorecard(p),
+    ]).then(([k,t,c,s,g,e,a,r,pr,o,sc]) => {
+      if (k.status==='fulfilled')  setKpis(k.value.data)
+      if (t.status==='fulfilled')  setTimeline(t.value.data)
+      if (c.status==='fulfilled')  setCompliance(c.value.data)
+      if (s.status==='fulfilled')  setByService(s.value.data)
+      if (g.status==='fulfilled')  setByGroup(g.value.data)
+      if (e.status==='fulfilled')  setElapsed(e.value.data)
+      if (a.status==='fulfilled')  setAssignAge(a.value.data)
+      if (r.status==='fulfilled')  setReassign(r.value.data)
+      if (pr.status==='fulfilled') setPriority(pr.value.data)
+      if (o.status==='fulfilled')  setOnHold(o.value.data)
       if (sc.status==='fulfilled') setScorecard(sc.value.data)
     }).finally(() => setLoading(false))
-  }, [])
+  }, [towers, sdms, dateRange])
 
   useEffect(() => {
     // Load filter options

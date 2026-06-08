@@ -12,7 +12,6 @@ router = APIRouter(prefix="/monitoring", tags=["M1 Monitoring"])
 
 
 def _clean_nan(obj):
-    """Recursively replace NaN and inf values with None for JSON serialization"""
     if isinstance(obj, dict):
         return {k: _clean_nan(v) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -24,25 +23,23 @@ def _clean_nan(obj):
     return obj
 
 
-def _parse_filters(
-    date_from: Optional[str],
-    date_to: Optional[str],
-    groups: Optional[List[str]],
-    priorities: Optional[List[int]],
-    categories: Optional[List[str]],
-    states: Optional[List[str]],
-    sla: Optional[str],
+def _pf(
+    date_from=None, date_to=None,
+    towers=None, sdms=None,
+    groups=None, priorities=None,
+    categories=None, states=None, sla=None,
 ) -> dict:
+    """Build params dict, omitting None values."""
     return {k: v for k, v in dict(
-        date_from=date_from, date_to=date_to, groups=groups,
-        priorities=priorities, categories=categories,
-        states=states, sla=sla,
+        date_from=date_from, date_to=date_to,
+        towers=towers, sdms=sdms,
+        groups=groups, priorities=priorities,
+        categories=categories, states=states, sla=sla,
     ).items() if v is not None}
 
 
 @router.get("/filters")
 def get_filters():
-    """Return all available filter option values."""
     return get_filter_options(get_dataframe())
 
 
@@ -50,20 +47,19 @@ def get_filters():
 def get_kpis(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
     priorities: Optional[List[int]] = Query(default=None),
     categories: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, priorities, categories, None, None))
-    active = df[df["state"].isin(["Open", "In Progress", "On Hold"])]
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, groups, priorities, categories))
+    active   = df[df["state"].isin(["Open", "In Progress", "On Hold"])]
     resolved = df[df["state"].isin(["Resolved", "Closed"])]
-
     avg_mttr = resolved["mttr_hours"].mean()
     avg_mttr = round(avg_mttr, 1) if not np.isnan(avg_mttr) else 0
-
     sla_breaches = int(df[df["made_sla_bool"] == False].shape[0])
-    compliance = round(100 * df["made_sla_bool"].sum() / len(df), 1) if len(df) else 0
-
+    compliance   = round(100 * df["made_sla_bool"].sum() / len(df), 1) if len(df) else 0
     return {
         "total_active":       int(len(active)),
         "total_incidents":    int(len(df)),
@@ -82,29 +78,32 @@ def get_kpis(
 def get_by_group(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     priorities: Optional[List[int]] = Query(default=None),
     categories: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, None, priorities, categories, None, None))
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, None, priorities, categories))
     grp = df.groupby(["assignment_group", "state"]).size().unstack(fill_value=0)
     for col in ["Open", "In Progress", "On Hold", "Resolved", "Closed"]:
         if col not in grp.columns:
             grp[col] = 0
     grp = grp.reset_index().rename(columns={"assignment_group": "group"})
     grp["total"] = grp[["Open","In Progress","On Hold","Resolved","Closed"]].sum(axis=1)
-    grp = grp.sort_values("total", ascending=False)
-    return grp.to_dict(orient="records")
+    return grp.sort_values("total", ascending=False).to_dict(orient="records")
 
 
 @router.get("/by-category")
 def get_by_category(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
     priorities: Optional[List[int]] = Query(default=None),
     states: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, priorities, None, states, None))
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, groups, priorities, None, states))
     cat = df.groupby("category").size().reset_index(name="count").sort_values("count", ascending=False)
     total = cat["count"].sum()
     cat["percentage"] = (cat["count"] / total * 100).round(1)
@@ -115,30 +114,32 @@ def get_by_category(
 def get_sla_kpi(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
     priorities: Optional[List[int]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, priorities, None, None, None))
-    total   = len(df)
-    met     = int(df["made_sla_bool"].sum())
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, groups, priorities))
+    total    = len(df)
+    met      = int(df["made_sla_bool"].sum())
     breached = total - met
     by_priority = []
     for p in [1, 2, 3, 4]:
         sub = df[df["priority"] == p]
         if len(sub):
             by_priority.append({
-                "priority": p,
-                "label": f"P{p}",
-                "total": len(sub),
-                "met": int(sub["made_sla_bool"].sum()),
+                "priority":   p,
+                "label":      f"P{p}",
+                "total":      len(sub),
+                "met":        int(sub["made_sla_bool"].sum()),
                 "compliance": round(100 * sub["made_sla_bool"].sum() / len(sub), 1),
             })
     return {
-        "total": total,
-        "met": met,
-        "breached": breached,
+        "total":          total,
+        "met":            met,
+        "breached":       breached,
         "compliance_pct": round(100 * met / total, 1) if total else 0,
-        "by_priority": by_priority,
+        "by_priority":    by_priority,
     }
 
 
@@ -146,9 +147,11 @@ def get_sla_kpi(
 def get_priority_heatmap(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     categories: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, None, None, categories, None, None))
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, None, None, categories))
     piv = df.pivot_table(index="assignment_group", columns="priority", values="number",
                           aggfunc="count", fill_value=0)
     for p in [1, 2, 3, 4]:
@@ -164,11 +167,13 @@ def get_priority_heatmap(
 def get_reopen_tracker(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, None, None, None, None))
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, groups))
     reopened = df[df["reopen_count"] > 0].copy()
-    monthly = reopened.groupby("month").agg(
+    monthly  = reopened.groupby("month").agg(
         reopen_count=("reopen_count", "sum"),
         incident_count=("number", "count"),
     ).reset_index().rename(columns={"month": "period"})
@@ -176,9 +181,9 @@ def get_reopen_tracker(
         ["number","short_description","assignment_group","priority","reopen_count","state"]
     ].to_dict(orient="records")
     return {
-        "monthly_trend": monthly.to_dict(orient="records"),
-        "top_reopened": top_tickets,
-        "total_reopened": int(len(reopened)),
+        "monthly_trend":      monthly.to_dict(orient="records"),
+        "top_reopened":       top_tickets,
+        "total_reopened":     int(len(reopened)),
         "total_reopen_events": int(reopened["reopen_count"].sum()),
     }
 
@@ -190,6 +195,8 @@ def get_incidents(
     search: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
     priorities: Optional[List[int]] = Query(default=None),
     categories: Optional[List[str]] = Query(default=None),
@@ -198,7 +205,7 @@ def get_incidents(
     sort_by: str = "created",
     sort_dir: str = "desc",
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, priorities, categories, states, sla))
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, groups, priorities, categories, states, sla))
 
     if search:
         mask = (
@@ -212,7 +219,7 @@ def get_incidents(
     sort_col = sort_by if sort_by in valid_sort else "created"
     df = df.sort_values(sort_col, ascending=(sort_dir == "asc"))
 
-    total = len(df)
+    total   = len(df)
     df_page = df.iloc[(page - 1) * limit : page * limit]
 
     display_cols = [
@@ -222,15 +229,13 @@ def get_incidents(
         "assigned_to","resolution_code","resolution_notes",
     ]
     available = [c for c in display_cols if c in df_page.columns]
-    result = df_page[available].copy()
+    result    = df_page[available].copy()
 
-    # Convert to dict BEFORE any value conversion to avoid NaN serialization
     records = []
     for _, row in result.iterrows():
         rec = {}
         for col in available:
             val = row[col]
-            # Convert NaT, NaN, and inf to None (JSON null)
             try:
                 if pd.isna(val):
                     rec[col] = None
@@ -240,7 +245,7 @@ def get_incidents(
                     rec[col] = str(val)
                 else:
                     rec[col] = val
-            except:
+            except Exception:
                 rec[col] = str(val)
         records.append(rec)
 
@@ -257,13 +262,15 @@ def get_incidents(
 def get_top_services(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
     top_n: int = 10,
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, None, None, None, None))
-    svc = df[df["service_offering"].str.strip().ne("")]
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, groups))
+    svc    = df[df["service_offering"].str.strip().ne("")]
     counts = svc.groupby("service_offering").size().reset_index(name="count").sort_values("count", ascending=False)
-    total = counts["count"].sum()
+    total  = counts["count"].sum()
     counts["percentage"] = (counts["count"] / total * 100).round(1)
     return counts.head(top_n).to_dict(orient="records")
 
@@ -272,13 +279,15 @@ def get_top_services(
 def get_resolution_codes(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
     priorities: Optional[List[int]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, priorities, None, None, None))
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, groups, priorities))
     resolved = df[df["resolution_code"].str.strip().ne("") & df["resolution_code"].notna()]
     counts = resolved.groupby("resolution_code").size().reset_index(name="count").sort_values("count", ascending=False)
-    total = counts["count"].sum()
+    total  = counts["count"].sum()
     counts["percentage"] = (counts["count"] / total * 100).round(1)
     return counts.head(12).to_dict(orient="records")
 
@@ -287,9 +296,11 @@ def get_resolution_codes(
 def get_monthly_volume(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), _parse_filters(date_from, date_to, groups, None, None, None, None))
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to, towers, sdms, groups))
     monthly = df.groupby("month").agg(
         total=("number", "count"),
         resolved=("state", lambda x: (x.isin(["Resolved","Closed"])).sum()),
@@ -298,6 +309,56 @@ def get_monthly_volume(
     ).reset_index().rename(columns={"month": "period"})
     monthly["avg_mttr"] = monthly["avg_mttr"].round(1)
     return monthly.sort_values("period").to_dict(orient="records")
+
+
+@router.get("/tower-summary")
+def get_tower_summary(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to))
+    result = []
+    for tower in sorted(df["tower"].dropna().unique()):
+        if not str(tower).strip():
+            continue
+        sub = df[df["tower"] == tower]
+        total = len(sub)
+        met = int(sub["made_sla_bool"].sum())
+        resolved = sub[sub["state"].isin(["Resolved", "Closed"])]
+        avg_mttr = resolved["mttr_hours"].mean()
+        result.append({
+            "tower":           tower,
+            "total_incidents": total,
+            "sla_breached":    total - met,
+            "compliance_pct":  round(100 * met / total, 1) if total else 0,
+            "avg_mttr":        round(float(avg_mttr), 1) if not np.isnan(avg_mttr) else 0,
+        })
+    return sorted(result, key=lambda x: x["total_incidents"], reverse=True)
+
+
+@router.get("/sdm-summary")
+def get_sdm_summary(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    df = apply_filters(get_dataframe(), _pf(date_from, date_to))
+    result = []
+    for sdm in sorted(df["sdm"].dropna().unique()):
+        if not str(sdm).strip():
+            continue
+        sub = df[df["sdm"] == sdm]
+        total = len(sub)
+        met = int(sub["made_sla_bool"].sum())
+        resolved = sub[sub["state"].isin(["Resolved", "Closed"])]
+        avg_mttr = resolved["mttr_hours"].mean()
+        compliance = round(100 * met / total, 1) if total else 0
+        result.append({
+            "sdm":         sdm,
+            "assignments": total,
+            "avg_mttr":    round(float(avg_mttr), 1) if not np.isnan(avg_mttr) else 0,
+            "performance": compliance,
+        })
+    return sorted(result, key=lambda x: x["assignments"], reverse=True)
 
 
 @router.get("/last-updated")

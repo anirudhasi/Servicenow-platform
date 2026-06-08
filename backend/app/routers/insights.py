@@ -28,9 +28,13 @@ def _sev(value, warn_thresh, crit_thresh, reverse=False):
 def get_monitoring_insights(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    df = apply_filters(get_dataframe(), {k: v for k, v in dict(
+        date_from=date_from, date_to=date_to, towers=towers, sdms=sdms, groups=groups,
+    ).items() if v is not None})
     insights = []
 
     # ── SLA Compliance ──
@@ -125,9 +129,13 @@ def get_monitoring_insights(
 def get_trends_insights(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    df = apply_filters(get_dataframe(), {k: v for k, v in dict(
+        date_from=date_from, date_to=date_to, towers=towers, sdms=sdms, groups=groups,
+    ).items() if v is not None})
     insights = []
 
     monthly = df.groupby("month").size().reset_index(name="count").sort_values("month")

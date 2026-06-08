@@ -108,11 +108,13 @@ def _compute_metric(df, metric: dict) -> dict:
 def scorecard_summary(
     date_from: Optional[str] = None,
     date_to:   Optional[str] = None,
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
     groups:    Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(
-        date_from=date_from, date_to=date_to, groups=groups,
-    ))
+    df = apply_filters(get_dataframe(), {k: v for k, v in dict(
+        date_from=date_from, date_to=date_to, towers=towers, sdms=sdms, groups=groups,
+    ).items() if v is not None})
     return [_compute_metric(df, m) for m in AM_METRICS]
 
 
@@ -120,12 +122,14 @@ def scorecard_summary(
 def scorecard_by_agent(
     date_from: Optional[str] = None,
     date_to:   Optional[str] = None,
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
     groups:    Optional[List[str]] = Query(default=None),
     top_n:     int = 15,
 ):
-    df = apply_filters(get_dataframe(), dict(
-        date_from=date_from, date_to=date_to, groups=groups,
-    ))
+    df = apply_filters(get_dataframe(), {k: v for k, v in dict(
+        date_from=date_from, date_to=date_to, towers=towers, sdms=sdms, groups=groups,
+    ).items() if v is not None})
     df = df[df["assigned_to"].str.strip().ne("") & df["assigned_to"].notna()]
     if df.empty:
         return []
@@ -165,11 +169,13 @@ def scorecard_by_agent(
 def scorecard_monthly(
     date_from: Optional[str] = None,
     date_to:   Optional[str] = None,
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
     groups:    Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(
-        date_from=date_from, date_to=date_to, groups=groups,
-    ))
+    df = apply_filters(get_dataframe(), {k: v for k, v in dict(
+        date_from=date_from, date_to=date_to, towers=towers, sdms=sdms, groups=groups,
+    ).items() if v is not None})
     monthly = df.groupby("month").apply(lambda g: {
         "period":    g["month"].iloc[0],
         "total":     len(g),

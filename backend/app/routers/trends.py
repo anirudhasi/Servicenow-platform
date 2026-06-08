@@ -16,23 +16,31 @@ def _resample_key(granularity: str):
     return {"day": "date", "week": "week", "month": "month"}.get(granularity, "month")
 
 
+def _f(date_from=None, date_to=None, towers=None, sdms=None,
+       groups=None, priorities=None, categories=None, states=None) -> dict:
+    return {k: v for k, v in dict(
+        date_from=date_from, date_to=date_to,
+        towers=towers, sdms=sdms,
+        groups=groups, priorities=priorities,
+        categories=categories, states=states,
+    ).items() if v is not None}
+
+
 @router.get("/volume")
 def get_volume(
     granularity: str = "month",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
     priorities: Optional[List[int]] = Query(default=None),
     categories: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(
-        date_from=date_from, date_to=date_to,
-        groups=groups, priorities=priorities, categories=categories,
-    ))
+    df = apply_filters(get_dataframe(), _f(date_from, date_to, towers, sdms, groups, priorities, categories))
     if df.empty:
         return []
     key = _resample_key(granularity)
-    # Drop rows where the period key is unknown/null before grouping
     df = df[df[key].notna() & (df[key].astype(str) != "Unknown")]
     if df.empty:
         return []
@@ -49,10 +57,12 @@ def get_mttr(
     granularity: str = "month",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
     categories: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups, categories=categories))
+    df = apply_filters(get_dataframe(), _f(date_from, date_to, towers, sdms, groups, None, categories))
     resolved = df[df["mttr_hours"].notna() & (df["mttr_hours"] > 0)]
     if resolved.empty:
         return []
@@ -62,7 +72,6 @@ def get_mttr(
     pivoted = mttr.pivot_table(index=key, columns="assignment_group", values="mttr_hours").reset_index()
     pivoted.columns.name = None
     pivoted = pivoted.rename(columns={key: "period"})
-    # Align overall_avg by period (not by position — fixes prior misalignment bug)
     overall = resolved.groupby(key)["mttr_hours"].mean().round(1).reset_index()
     overall.columns = ["period", "overall_avg"]
     pivoted = pivoted.merge(overall, on="period", how="left")
@@ -74,9 +83,11 @@ def get_category_distribution(
     granularity: str = "month",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    df = apply_filters(get_dataframe(), _f(date_from, date_to, towers, sdms, groups))
     if df.empty:
         return []
     key = _resample_key(granularity)
@@ -95,10 +106,12 @@ def get_sla_compliance(
     granularity: str = "month",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
     priorities: Optional[List[int]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups, priorities=priorities))
+    df = apply_filters(get_dataframe(), _f(date_from, date_to, towers, sdms, groups, priorities))
     if df.empty:
         return []
     key = _resample_key(granularity)
@@ -119,9 +132,11 @@ def get_priority_trend(
     granularity: str = "month",
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    df = apply_filters(get_dataframe(), _f(date_from, date_to, towers, sdms, groups))
     if df.empty:
         return []
     key = _resample_key(granularity)
@@ -142,24 +157,26 @@ def get_priority_trend(
 def get_resolution_heatmap(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
 ):
-    """Returns incident count by day-of-week × hour for heatmap visualization."""
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    df = apply_filters(get_dataframe(), _f(date_from, date_to, towers, sdms, groups))
     hm = df.groupby(["dow", "hour"]).size().reset_index(name="count")
     dow_order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     hm["dow"] = pd.Categorical(hm["dow"], categories=dow_order, ordered=True)
-    hm = hm.sort_values(["dow","hour"])
-    return hm.to_dict(orient="records")
+    return hm.sort_values(["dow","hour"]).to_dict(orient="records")
 
 
 @router.get("/reassignment-analysis")
 def get_reassignment_analysis(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    df = apply_filters(get_dataframe(), _f(date_from, date_to, towers, sdms, groups))
     if df.empty:
         return {"by_group": [], "scatter_data": []}
     by_group = df.groupby("assignment_group").agg(
@@ -187,12 +204,12 @@ def get_forecast(
     periods: int = 6,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
 ):
-    """Simple linear regression forecast over monthly volumes."""
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to))
+    df = apply_filters(get_dataframe(), _f(date_from, date_to, towers, sdms))
     if df.empty:
         return {"historical": [], "forecast": []}
-    # Only use rows with valid month values
     df = df[df["month"].notna() & (df["month"].astype(str) != "Unknown")]
     monthly = df.groupby("month").size().reset_index(name="count").sort_values("month")
     if len(monthly) < 3:
@@ -200,34 +217,31 @@ def get_forecast(
 
     x = np.arange(len(monthly))
     y = monthly["count"].values
-    # Weighted linear regression (recent data weighted more)
     weights = np.linspace(0.5, 1.0, len(x))
     coeffs  = np.polyfit(x, y, deg=1, w=weights)
     trend   = np.poly1d(coeffs)
 
-    # Seasonal factors from monthly averages
     monthly["month_num"] = pd.to_datetime(monthly["month"] + "-01").dt.month
     seasonal = monthly.groupby("month_num")["count"].mean()
     overall_mean = monthly["count"].mean()
     seasonal_factors = (seasonal / overall_mean).to_dict()
 
-    # Project future months
-    last_period = pd.to_datetime(monthly["month"].iloc[-1] + "-01")
+    last_period  = pd.to_datetime(monthly["month"].iloc[-1] + "-01")
     forecast_rows = []
     for i in range(1, periods + 1):
-        fut = last_period + pd.DateOffset(months=i)
+        fut        = last_period + pd.DateOffset(months=i)
         fut_period = fut.strftime("%Y-%m")
-        fut_x = len(monthly) + i - 1
-        base_pred = max(0, trend(fut_x))
-        sf = seasonal_factors.get(fut.month, 1.0)
-        pred = round(base_pred * sf)
-        ci_width = round(pred * 0.12)  # ±12% confidence interval
+        fut_x      = len(monthly) + i - 1
+        base_pred  = max(0, trend(fut_x))
+        sf         = seasonal_factors.get(fut.month, 1.0)
+        pred       = round(base_pred * sf)
+        ci_width   = round(pred * 0.12)
         forecast_rows.append({
-            "period": fut_period,
+            "period":   fut_period,
             "forecast": int(pred),
             "ci_lower": max(0, int(pred - ci_width)),
             "ci_upper": int(pred + ci_width),
-            "type": "forecast",
+            "type":     "forecast",
         })
 
     historical = [{"period": r["month"], "count": int(r["count"]), "type": "actual"}
@@ -239,19 +253,20 @@ def get_forecast(
 def get_root_cause(
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
+    towers: Optional[List[str]] = Query(default=None),
+    sdms: Optional[List[str]] = Query(default=None),
     groups: Optional[List[str]] = Query(default=None),
 ):
-    df = apply_filters(get_dataframe(), dict(date_from=date_from, date_to=date_to, groups=groups))
+    df = apply_filters(get_dataframe(), _f(date_from, date_to, towers, sdms, groups))
     if df.empty:
         return []
-    rc = df.groupby(["category", "subcategory"]).size().reset_index(name="count")
-    rc = rc.sort_values(["category","count"], ascending=[True, False])
-    # Treemap format
+    rc   = df.groupby(["category", "subcategory"]).size().reset_index(name="count")
+    rc   = rc.sort_values(["category","count"], ascending=[True, False])
     tree = []
     for cat, sub in rc.groupby("category"):
         tree.append({
-            "name": cat,
-            "total": int(sub["count"].sum()),
+            "name":     cat,
+            "total":    int(sub["count"].sum()),
             "children": sub.rename(columns={"subcategory": "name"})[["name","count"]].to_dict(orient="records")
         })
     tree.sort(key=lambda x: x["total"], reverse=True)

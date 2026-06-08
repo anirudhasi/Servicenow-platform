@@ -171,7 +171,7 @@ def _fill_defaults(df: pd.DataFrame) -> pd.DataFrame:
         "service_offering":"", "last_assignment_date":None, "urgency":3,
         "subcategory":"", "updated":None, "updated_by":"", "sla_due":None,
         "assigned_to":"", "impact_user":"", "last_reopened_at":None, "duration":0,
-        "internal_id":"",
+        "internal_id":"", "tower":"", "sdm":"",
     }
     for col, default in DEFAULTS.items():
         if col not in df.columns:
@@ -291,8 +291,8 @@ def apply_filters(df, params):
 
 def get_filter_options(df):
     return {
-        "towers":     sorted(df["tower"].dropna().unique().tolist()),
-        "sdms":       sorted(df["sdm"].dropna().unique().tolist()),
+        "towers":     sorted(df["tower"].dropna()[df["tower"].str.strip() != ""].unique().tolist()),
+        "sdms":       sorted(df["sdm"].dropna()[df["sdm"].str.strip() != ""].unique().tolist()),
         "groups":     sorted(df["assignment_group"].dropna().unique().tolist()),
         "categories": sorted(df["category"].dropna().unique().tolist()),
         "states":     sorted(df["state"].dropna().unique().tolist()),

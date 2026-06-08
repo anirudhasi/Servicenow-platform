@@ -45,17 +45,18 @@ function DrillDownCard({ title, data, drillDownPath, onDrillDown }) {
   )
 }
 
-function TowerPanel({ tower, data }) {
+function TowerPanel({ tower, data, colorIdx }) {
+  const color = COLORS[colorIdx % COLORS.length]
   return (
-    <div className="card p-4 border-l-4" style={{ borderLeftColor: COLORS[TOWERS.indexOf(tower)] }}>
+    <div className="card p-4 border-l-4" style={{ borderLeftColor: color }}>
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{tower}</p>
           <p className="text-xs text-slate-400">Tower Operations</p>
         </div>
-        <Building2 size={20} style={{ color: COLORS[TOWERS.indexOf(tower)] }} />
+        <Building2 size={20} style={{ color }} />
       </div>
-      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+      <div className="grid grid-cols-4 gap-2 text-center text-xs">
         <div className="bg-slate-50 dark:bg-slate-900/30 rounded p-2">
           <p className="font-bold text-slate-700 dark:text-slate-200">{data.total_incidents}</p>
           <p className="text-[10px] text-slate-400">Incidents</p>
@@ -67,6 +68,10 @@ function TowerPanel({ tower, data }) {
         <div className="bg-slate-50 dark:bg-slate-900/30 rounded p-2">
           <p className="font-bold text-green-600">{data.compliance_pct}%</p>
           <p className="text-[10px] text-slate-400">Compliance</p>
+        </div>
+        <div className="bg-slate-50 dark:bg-slate-900/30 rounded p-2">
+          <p className="font-bold text-slate-700 dark:text-slate-200">{data.avg_mttr}h</p>
+          <p className="text-[10px] text-slate-400">Avg MTTR</p>
         </div>
       </div>
     </div>
@@ -119,31 +124,14 @@ export default function ExecutiveSummary() {
     setLoading(true)
     Promise.allSettled([
       monApi.kpis(),
-      breachApi.kpis(),
+      monApi.towerSummary(),
+      monApi.sdmSummary(),
       breachApi.timeline(),
-    ]).then(([k, b, t]) => {
-      if (k.status === 'fulfilled') setKpis(k.value.data)
-      if (b.status === 'fulfilled') {
-        // Create tower summary from KPIs
-        const breachKpis = b.value.data
-        const towerSummary = TOWERS.map(tower => ({
-          tower,
-          total_incidents: Math.floor(Math.random() * 1500),
-          sla_breached: Math.floor(Math.random() * 200),
-          compliance_pct: Math.floor(80 + Math.random() * 15),
-        }))
-        setTowerData(towerSummary)
-
-        // Create SDM summary
-        const sdmSummary = SDMS.map(sdm => ({
-          sdm,
-          assignments: Math.floor(Math.random() * 500),
-          avg_mttr: Math.floor(20 + Math.random() * 80),
-          performance: Math.floor(75 + Math.random() * 20),
-        }))
-        setSDMData(sdmSummary)
-      }
-      if (t.status === 'fulfilled') setBreachTrend(t.value.data)
+    ]).then(([k, tw, sd, t]) => {
+      if (k.status === 'fulfilled')  setKpis(k.value.data)
+      if (tw.status === 'fulfilled') setTowerData(tw.value.data)
+      if (sd.status === 'fulfilled') setSDMData(sd.value.data)
+      if (t.status === 'fulfilled')  setBreachTrend(t.value.data)
     }).finally(() => setLoading(false))
   }, [])
 
@@ -221,13 +209,13 @@ export default function ExecutiveSummary() {
                 {loading ? (
                   <SkeletonCard h="h-32" />
                 ) : (
-                  towerData.map(tower => (
+                  towerData.map((tower, i) => (
                     <div
                       key={tower.tower}
                       onClick={() => handleDrillDown('tower', tower.tower)}
                       className="cursor-pointer"
                     >
-                      <TowerPanel tower={tower.tower} data={tower} />
+                      <TowerPanel tower={tower.tower} data={tower} colorIdx={i} />
                     </div>
                   ))
                 )}

@@ -249,8 +249,14 @@ def list_sources():
 def reload_all():
     """Force reload all data sources."""
     try:
-        _load.cache_clear()
         df = get_dataframe(force_reload=True)
+        # Also clear breach CSV cache
+        try:
+            from app.routers.breach import _load as breach_load, _load_mapping
+            breach_load.cache_clear()
+            _load_mapping.cache_clear()
+        except Exception:
+            pass
         return {
             "status": "reloaded",
             "total_records": len(df),

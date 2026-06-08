@@ -15,16 +15,50 @@ from functools import lru_cache
 
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+from typing import Optional, List
 
 from app.knowledge.sla_rules import SLA_RESOLUTION, KPI_TARGETS
 
-router  = APIRouter(prefix="/breach", tags=["SLA Breach Intelligence"])
-TODAY   = datetime(2026, 6, 4, 14, 0, 0)
-_CSV    = os.path.join(os.path.dirname(__file__), "..", "..", "data", "sla_breach.csv")
+router   = APIRouter(prefix="/breach", tags=["SLA Breach Intelligence"])
+TODAY    = datetime(2026, 6, 4, 14, 0, 0)
+_CSV     = os.path.join(os.path.dirname(__file__), "..", "..", "data", "sla_breach.csv")
+_MAP_CSV = os.path.join(os.path.dirname(__file__), "..", "..", "data", "assignment_group_mappings.csv")
 
 # Resolution SLA in business hours keyed by priority int
 SLA_RES_H = {p: v["business_hours"] for p, v in SLA_RESOLUTION.items()}
+
+
+@lru_cache(maxsize=1)
+def _load_mapping() -> pd.DataFrame:
+    try:
+        return pd.read_csv(_MAP_CSV, dtype=str)
+    except Exception:
+        return pd.DataFrame(columns=["assignment_group", "tower", "sdm"])
+
+
+def _apply_org_filter(
+    df: pd.DataFrame,
+    towers=None, sdms=None,
+    date_from: str = None, date_to: str = None,
+) -> pd.DataFrame:
+    if date_from:
+        df = df[df["created"] >= pd.Timestamp(date_from)]
+    if date_to:
+        df = df[df["created"] <= pd.Timestamp(date_to) + pd.Timedelta(days=1)]
+    if towers is None and sdms is None:
+        return df
+    if not towers and not sdms:
+        return df
+    mapping = _load_mapping()
+    groups: set = set()
+    if towers:
+        groups.update(mapping[mapping["tower"].isin(towers)]["assignment_group"].tolist())
+    if sdms:
+        groups.update(mapping[mapping["sdm"].isin(sdms)]["assignment_group"].tolist())
+    if not groups:
+        return df.iloc[0:0]
+    return df[df["assignment_group"].isin(groups)]
 
 
 def _safe(v, d=0.0):
@@ -119,8 +153,13 @@ def _load() -> pd.DataFrame:
 # ── 1. KPIs (contract-referenced) ────────────────────────────────────────────
 
 @router.get("/kpis")
-def get_kpis():
-    df = _load()
+def get_kpis(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     already  = int(df["already_breached"].sum())
     on_hold  = int(df["on_hold"].sum())
     crit_hi  = int((df["priority_num"] <= 2).sum())
@@ -166,8 +205,13 @@ def get_kpis():
 # ── 2. Breach Timeline ────────────────────────────────────────────────────────
 
 @router.get("/timeline")
-def get_timeline():
-    df = _load()
+def get_timeline(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     ws = (TODAY - timedelta(days=7)).date()
     we = (TODAY + timedelta(days=14)).date()
     win = df[df["breach_time"].notna()
@@ -189,8 +233,13 @@ def get_timeline():
 # ── 3. SLA Compliance by Priority (contract-anchored) ────────────────────────
 
 @router.get("/sla-compliance")
-def get_sla_compliance():
-    df = _load()
+def get_sla_compliance(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     result = []
     for p in [1, 2, 3, 4]:
         sub = df[df["priority_num"] == p]
@@ -217,8 +266,14 @@ def get_sla_compliance():
 # ── 4. Service Pareto ─────────────────────────────────────────────────────────
 
 @router.get("/by-service")
-def get_by_service(top_n: int = 12):
-    df = _load()
+def get_by_service(
+    top_n:  int = 12,
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     svc = (df.groupby("service_offering")
            .agg(count=("task","count"),
                 already_breached=("already_breached","sum"),
@@ -238,8 +293,13 @@ def get_by_service(top_n: int = 12):
 # ── 5. Group × State ──────────────────────────────────────────────────────────
 
 @router.get("/by-group")
-def get_by_group():
-    df = _load()
+def get_by_group(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     grp = (df.groupby(["assignment_group","state"]).size()
            .unstack(fill_value=0).reset_index())
     for s in ["On Hold","In Progress"]:
@@ -263,8 +323,13 @@ def get_by_group():
 # ── 6. Elapsed % Distribution ─────────────────────────────────────────────────
 
 @router.get("/elapsed-distribution")
-def get_elapsed_distribution():
-    df = _load()
+def get_elapsed_distribution(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     bins   = [0, 25, 50, 75, 90, 100, 200]
     labels = ["0–25% Healthy","25–50% Caution","50–75% Elevated","75–90% At Risk","90–100% Critical",">100% Breached"]
     df["bucket"] = pd.cut(
@@ -283,8 +348,13 @@ def get_elapsed_distribution():
 # ── 7. Assignment Age Analysis (NEW — uses Last Assignment Date) ──────────────
 
 @router.get("/assignment-age")
-def get_assignment_age():
-    df = _load()
+def get_assignment_age(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     valid = df[df["assignment_age_h"].notna()].copy()
     if valid.empty:
         return {"summary": [], "by_group": [], "age_distribution": []}
@@ -343,8 +413,13 @@ def get_assignment_age():
 # ── 8. Reassignment Impact ────────────────────────────────────────────────────
 
 @router.get("/reassignment-impact")
-def get_reassignment_impact():
-    df = _load()
+def get_reassignment_impact(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     impact = (df.groupby("reassignment_count")
               .agg(count=("task","count"),
                    avg_elapsed_pct=("business_elapsed_percentage","mean"),
@@ -360,8 +435,13 @@ def get_reassignment_impact():
 # ── 9. Priority Breakdown ─────────────────────────────────────────────────────
 
 @router.get("/priority-breakdown")
-def get_priority_breakdown():
-    df = _load()
+def get_priority_breakdown(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     summary = (df.groupby("priority")
                .agg(count=("task","count"),
                     already_breached=("already_breached","sum"),
@@ -392,8 +472,13 @@ def get_priority_breakdown():
 # ── 10. On Hold Risk Analysis ─────────────────────────────────────────────────
 
 @router.get("/on-hold-analysis")
-def get_on_hold_analysis():
-    df = _load()
+def get_on_hold_analysis(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
     oh = df[df["on_hold"]].copy()
     ip = df[~df["on_hold"]].copy()
 
@@ -434,8 +519,13 @@ def get_on_hold_analysis():
 # ── 11. KPI Scorecard (contract KPIs) ─────────────────────────────────────────
 
 @router.get("/kpi-scorecard")
-def get_kpi_scorecard():
-    df = _load()
+def get_kpi_scorecard(
+    towers:    Optional[List[str]] = Query(default=None),
+    sdms:      Optional[List[str]] = Query(default=None),
+    date_from: Optional[str] = None,
+    date_to:   Optional[str] = None,
+):
+    df = _apply_org_filter(_load(), towers, sdms, date_from, date_to)
 
     # Aging KPI — % open tickets older than 30 days
     days_open = ((TODAY - df["created"]).dt.total_seconds() / 86400).clip(lower=0)

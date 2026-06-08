@@ -2,7 +2,23 @@ import axios from 'axios'
 
 const BASE = '/api'
 
-const api = axios.create({ baseURL: BASE, timeout: 60000 })
+const api = axios.create({
+  baseURL: BASE,
+  timeout: 60000,
+  paramsSerializer: (params) => {
+    const parts = []
+    for (const [key, val] of Object.entries(params)) {
+      if (val === null || val === undefined) continue
+      if (Array.isArray(val)) {
+        if (val.length === 0) continue  // skip empty arrays — don't send towers= with no values
+        val.forEach(v => parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(v)}`))
+      } else {
+        parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(val)}`)
+      }
+    }
+    return parts.join('&')
+  },
+})
 
 // ── M1 Monitoring ─────────────────────────────────────────────────────────────
 export const monitoring = {
@@ -18,6 +34,8 @@ export const monitoring = {
   topServices:    (p = {}) => api.get('/monitoring/top-services',    { params: p }),
   resolutionCodes:(p = {}) => api.get('/monitoring/resolution-codes',{ params: p }),
   monthlyVolume:  (p = {}) => api.get('/monitoring/monthly-volume',  { params: p }),
+  towerSummary:   (p = {}) => api.get('/monitoring/tower-summary',   { params: p }),
+  sdmSummary:     (p = {}) => api.get('/monitoring/sdm-summary',     { params: p }),
 }
 
 // ── M2 Trends ─────────────────────────────────────────────────────────────────
@@ -81,17 +99,17 @@ export const scorecard = {
 
 // ── SLA Breach Intelligence ───────────────────────────────────────────────────
 export const breach = {
-  kpis:                () => api.get('/breach/kpis'),
-  timeline:            () => api.get('/breach/timeline'),
-  slaCompliance:       () => api.get('/breach/sla-compliance'),
-  byService:           () => api.get('/breach/by-service'),
-  byGroup:             () => api.get('/breach/by-group'),
-  elapsedDistribution: () => api.get('/breach/elapsed-distribution'),
-  assignmentAge:       () => api.get('/breach/assignment-age'),
-  reassignmentImpact:  () => api.get('/breach/reassignment-impact'),
-  priorityBreakdown:   () => api.get('/breach/priority-breakdown'),
-  onHoldAnalysis:      () => api.get('/breach/on-hold-analysis'),
-  kpiScorecard:        () => api.get('/breach/kpi-scorecard'),
+  kpis:                (p = {}) => api.get('/breach/kpis',                 { params: p }),
+  timeline:            (p = {}) => api.get('/breach/timeline',             { params: p }),
+  slaCompliance:       (p = {}) => api.get('/breach/sla-compliance',       { params: p }),
+  byService:           (p = {}) => api.get('/breach/by-service',           { params: p }),
+  byGroup:             (p = {}) => api.get('/breach/by-group',             { params: p }),
+  elapsedDistribution: (p = {}) => api.get('/breach/elapsed-distribution', { params: p }),
+  assignmentAge:       (p = {}) => api.get('/breach/assignment-age',       { params: p }),
+  reassignmentImpact:  (p = {}) => api.get('/breach/reassignment-impact',  { params: p }),
+  priorityBreakdown:   (p = {}) => api.get('/breach/priority-breakdown',   { params: p }),
+  onHoldAnalysis:      (p = {}) => api.get('/breach/on-hold-analysis',     { params: p }),
+  kpiScorecard:        (p = {}) => api.get('/breach/kpi-scorecard',        { params: p }),
 }
 
 // ── Data Management ──────────────────────────────────────────────────────────
@@ -113,6 +131,8 @@ export function buildParams(filters) {
   const p = {}
   if (filters.dateFrom)            p.date_from   = filters.dateFrom
   if (filters.dateTo)              p.date_to     = filters.dateTo
+  if (filters.towers?.length)      p.towers      = filters.towers
+  if (filters.sdms?.length)        p.sdms        = filters.sdms
   if (filters.groups?.length)      p.groups      = filters.groups
   if (filters.priorities?.length)  p.priorities  = filters.priorities
   if (filters.categories?.length)  p.categories  = filters.categories
